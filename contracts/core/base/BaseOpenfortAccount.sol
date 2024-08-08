@@ -281,8 +281,8 @@ abstract contract BaseOpenfortAccount is
      * @inheritdoc IAccount
      */
     function executeTransaction(
-        bytes32 _txHash,
-        bytes32 _suggestedSignedHash,
+        bytes32,
+        bytes32,
         Transaction calldata _transaction
     ) external payable override onlyBootloader{
         address to = address(uint160(_transaction.to));
