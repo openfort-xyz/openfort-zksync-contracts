@@ -1,18 +1,10 @@
 [profile.default]
-src = "contracts"
-out = "out"
-libs = ["lib"]
+src = 'contracts'
+out = 'out'
+libs = ['node_modules', 'lib']
+solc_version = '0.8.19'
+solc = '0.8.19'
 
-
-
-[profile.zksync]
-solc_version = "0.8.19"
-solc = "0.8.19"
-src = "contracts"
-libs = ["lib"]
-fallback_oz = true
-is_system = false
-mode = "3"
 
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
