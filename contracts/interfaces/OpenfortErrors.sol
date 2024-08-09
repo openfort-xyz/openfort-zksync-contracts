@@ -14,7 +14,6 @@ interface OpenfortErrors {
     /// @notice Error when an address is not a contract.
     error NotAContract();
 
-
     error ZeroAddressNotAllowed();
     error NotOwnerOrEntrypoint();
     error NotOwner();
