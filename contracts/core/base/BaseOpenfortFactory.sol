@@ -19,7 +19,7 @@ abstract contract BaseOpenfortFactory is IBaseOpenfortFactory, Ownable2Step {
 
     constructor(address _owner, address _accountImplementation) {
         if (_owner == address(0)) revert ZeroAddressNotAllowed();
-        if (!Address.isContract(_accountImplementation)) revert NotAContract();
+        // if (!Address.isContract(_accountImplementation)) revert NotAContract();
         _transferOwnership(_owner);
         _implementation = _accountImplementation;
     }
