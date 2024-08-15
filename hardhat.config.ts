@@ -6,16 +6,17 @@ import "tsconfig-paths/register"
 
 module.exports = {
   zksolc: {
-    version: "1.5.0", // Check for the latest version
-    isSystem: true,
+    version: "latest", // Check for the latest version
     compilerSource: "binary",
-    settings: {},
+    settings: {
+      enableEraVMExtensions: true,
+    },
   },
   defaultNetwork: "zkSyncLocal",
   networks: {
     zkSyncLocal: {
       url: "http://127.0.0.1:8011", // URL for the zkSync testnet
-      ethNetwork: "mainnet", // The Ethereum network where zkSync operates (use "mainnet" for production)
+      ethNetwork: "", // in-memory node doesn't support eth node; removing this line will cause an error
       zksync: true,
     },
   },
