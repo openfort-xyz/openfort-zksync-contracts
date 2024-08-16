@@ -22,8 +22,6 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
     address public initialGuardian;
     bytes32 public upgradeableOpenfortProxyCodeHash;
 
-    event Debug(uint256 d);
-
     error TooManyInitialGuardians();
 
     /**
@@ -36,6 +34,7 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
 
     constructor(
         address _owner,
+        bytes32 _upgradeableOpenfortProxyCodeHash,
         address _accountImplementation,
         uint256 _recoveryPeriod,
         uint256 _securityPeriod,
@@ -43,9 +42,7 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
         uint256 _lockPeriod,
         address _initialGuardian
     ) BaseOpenfortFactory(_owner, _accountImplementation) {
-        upgradeableOpenfortProxyCodeHash = hashL2Bytecode(
-            type(UpgradeableOpenfortProxy).creationCode
-        );
+        upgradeableOpenfortProxyCodeHash = _upgradeableOpenfortProxyCodeHash;
 
         if (
             _lockPeriod < _recoveryPeriod ||
@@ -84,9 +81,7 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
             codelen := extcodesize(account)
         }
         if (codelen > 0) return account;
-        account = address(
-            new UpgradeableOpenfortProxy{salt: salt}(_implementation, "")
-        );
+
         (bool success, bytes memory returnData) = SystemContractsCaller
             .systemCallWithReturndata(
                 uint32(gasleft()),
@@ -103,13 +98,11 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
                     )
                 )
             );
-
         require(
             success,
             string(abi.encodePacked("Deployment Failed: ", returnData))
         );
         emit AccountCreated(account, _admin);
-
         UpgradeableOpenfortAccount(payable(account)).initialize(
             _admin,
             recoveryPeriod,
@@ -118,9 +111,8 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
             lockPeriod,
             _initializeGuardian ? initialGuardian : address(0)
         );
-
-        (account) = abi.decode(returnData, (address));
-        //return account;
+        //(account) = abi.decode(returnData, (address));
+        return account;
     }
 
     /*
@@ -159,45 +151,5 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
             )
         );
         (account) = abi.decode(returnData, (address));
-    }
-
-    function hashL2Bytecode(
-        bytes memory _bytecode
-    ) internal returns (bytes32 hashedBytecode) {
-        
-        uint256 bytecodeLength = _bytecode.length;
-        uint256 paddingLength = (32 - (bytecodeLength % 32)) % 32;
-        
-        if (paddingLength > 0) {
-            bytes memory paddedCreationCode = new bytes(
-                bytecodeLength + paddingLength
-            );
-            for (uint256 i = 0; i < bytecodeLength; i++) {
-                paddedCreationCode[i] = _bytecode[i];
-            }
-            // Padding with zeros
-            for (
-                uint256 i = bytecodeLength;
-                i < paddedCreationCode.length;
-                i++
-            ) {
-                paddedCreationCode[i] = 0x00;
-            }
-            _bytecode = paddedCreationCode;
-        }
-
-        // Note that the length of the bytecode must be provided in 32-byte words.
-        require(_bytecode.length % 32 == 0, "po");
-
-        uint256 bytecodeLenInWords = _bytecode.length / 32;
-        require(bytecodeLenInWords < 2 ** 16, "pp"); // bytecode length must be less than 2^16 words
-        require(bytecodeLenInWords % 2 == 1, "pr"); // bytecode length in words must be odd
-        hashedBytecode =
-            sha256(_bytecode) &
-            0x00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
-        // Setting the version of the hash
-        hashedBytecode = (hashedBytecode | bytes32(uint256(1 << 248)));
-        // Setting the length
-        hashedBytecode = hashedBytecode | bytes32(bytecodeLenInWords << 224);
     }
 }
