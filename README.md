@@ -29,17 +29,12 @@
 
 ## Development
 
-### Install [foundry-zksync](https://github.com/openfort-xyz/openfort-zksync-contracts)
-
-
 ### Build
 ```
   git clone https://github.com/openfort-xyz/openfort-contracts.git && cd openfort-contracts
   yarn
-  forge install
-  forge build --zksync
+  yarn hardhat compile
 ```
-
 
 
 ## Narrative

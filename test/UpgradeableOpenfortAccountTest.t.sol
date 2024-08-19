@@ -29,6 +29,7 @@ contract UpgradeableOpenfortFactoryTest is Test {
     function testCreateAccountWithNonce() public {
         factory = new UpgradeableOpenfortFactory(
             address(account),
+            0x010000a53b1905b00699d89a2b3111560ac879fb4f32d4921fe675715f085fa3,
             0x9c1a3d7C98dBF89c7f5d167F2219C29c2fe775A7,
             100,
             10,

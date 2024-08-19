@@ -1,10 +1,5 @@
 node_modules/
 
-# Foundry Compiler files
-cache/
-out/
-zkout/
-
 # Ignores development broadcast logs
 !/broadcast
 /broadcast/*/31337/
@@ -13,9 +8,9 @@ zkout/
 # Docs
 docs/
 
-# Dotenv file
+# dotenv environment variables file
 .env
-
+.env.test
 
 # hardhat
 artifacts-zk

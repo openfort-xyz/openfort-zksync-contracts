@@ -5,40 +5,55 @@ import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 
 export default async function (hre: HardhatRuntimeEnvironment) {
 
+  console.log(`Running script on ${hre.network.name} network`);
+
   // Private key of the account used to deploy
-  const wallet = new Wallet("3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e");
-  const deployer = new Deployer(hre, wallet);
+  const wallet = new Wallet(process.env.WALLET_PRIVATE_KEY as string);
 
-  // const aaArtifact = await deployer.loadArtifact("UpgradeableOpenfortAccount");
-  const factoryArtifact = await deployer.loadArtifact("UpgradeableOpenfortFactory");
-  const proxyArtifact = await deployer.loadArtifact("UpgradeableOpenfortProxy");
+  // const deployer = new Deployer(hre, wallet);
 
+  const contractArtifactName = "UpgradeableOpenfortFactory";
+  const proxyArtifactName = "UpgradeableOpenfortProxy";
 
+  const factoryArtifact = await hre.deployer.loadArtifact(contractArtifactName);
+  const proxyArtifact = await hre.deployer.loadArtifact(proxyArtifactName);
 
-  // Getting the bytecodeHash of the account
-  const bytecodeHash = utils.hashBytecode(proxyArtifact.bytecode);
+  const RECOVERY_PERIOD = 2 * 24 * 60 * 60; // 2 days in seconds
+  const SECURITY_PERIOD = 1.5 * 24 * 60 * 60; // 1.5 days in seconds
+  const SECURITY_WINDOW = 0.5 * 24 * 60 * 60; // 0.5 days in seconds
+  const LOCK_PERIOD = 5 * 24 * 60 * 60; // 5 days in seconds
 
-  console.log(proxyArtifact.bytecode);
-  // DEBUG ONLY
-  const bytes32String = '0x' + Array.from(bytecodeHash)
-    .map(byte => byte.toString(16).padStart(2, '0'))
-    .join('');
-  console.log(bytes32String);
+  const constructorArguments = [
+    wallet.address,
+    utils.hashBytecode(proxyArtifact.bytecode),
+    process.env.ACCOUNT_IMPLEMENTATION_ADDRESS,
+    RECOVERY_PERIOD,
+    SECURITY_PERIOD,
+    SECURITY_WINDOW,
+    LOCK_PERIOD,
+    wallet.address,
+  ]
 
+  console.log(`Account Factory Owner is ${wallet.address}`);
 
-  const factory = await deployer.deploy(factoryArtifact, ["0xd986b0cB0D1Ad4CCCF0C4947554003fC0Be548E9", bytecodeHash, "0x9c1a3d7C98dBF89c7f5d167F2219C29c2fe775A7", 100, 10, 10, 200, "0xbc989fde9e54cad2ab4392af6df60f04873a033a"], undefined, [
-    // factoryDeps.
-    proxyArtifact.bytecode,
-  ]);
+  const factory = await hre.deployer.deploy(factoryArtifact,
+    constructorArguments,
+    "create",
+    undefined,
+    [proxyArtifact.bytecode]
+  );
 
-  const factoryAddress = await factory.getAddress();
-  console.log(`AA factory address: ${factoryAddress}`);
-  const aaFactory = new ethers.Contract(factoryAddress, factoryArtifact.abi, wallet)
-  const owner = Wallet.createRandom();
-  console.log("SC Account owner pk: ", owner.privateKey);
+  const FACTORY_ADDRESS = await factory.getAddress();
+  console.log(`AA factory address: ${FACTORY_ADDRESS}`);
 
-  const tx = await aaFactory.createAccountWithNonce(owner.address, "0x1000000000000000000000000000000000000000000000000000000000000000", false);
-  await tx.wait()
+  // if (!hre.network.name.includes("Node")) {
+  //   const fullContractSource = `${factoryArtifact.sourceName}:${factoryArtifact.contractName}`;
 
-  console.log(tx);
+  //   await hre.run("verify:verify", {
+  //     address: FACTORY_ADDRESS,
+  //     constructorArguments: constructorArguments,
+  //     contract: fullContractSource,
+  //     noCompile: true,
+  //   });
+  //}
 }
