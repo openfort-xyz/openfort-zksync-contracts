@@ -19,9 +19,15 @@ const config: HardhatUserConfig = {
       ethNetwork: "sepolia", // The Ethereum Web3 RPC URL, or the identifier of the network (e.g. `mainnet` or `sepolia`)
       zksync: true,
       // Verification endpoint for Sepolia
-      verifyURL: 'https://explorer.sepolia.era.zksync.dev/contract_verification',
-      accounts: [process.env.WALLET_PRIVATE_KEY as any],
-        
+      verifyURL: "https://explorer.sepolia.era.zksync.dev/contract_verification",
+      accounts: [process.env.WALLET_PRIVATE_KEY as any]
+    },
+    zkSophonTestnet: {
+      url: "https://rpc.testnet.sophon.xyz",
+      ethNetwork: "sepolia",
+      verifyURL: "https://api-explorer-verify.testnet.sophon.xyz",
+      zksync: true,
+      accounts: [process.env.WALLET_PRIVATE_KEY as any]
     }
   },
   zksolc: {
