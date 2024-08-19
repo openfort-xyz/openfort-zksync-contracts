@@ -46,14 +46,13 @@ export default async function (hre: HardhatRuntimeEnvironment) {
   const FACTORY_ADDRESS = await factory.getAddress();
   console.log(`AA factory address: ${FACTORY_ADDRESS}`);
 
-  // if (!hre.network.name.includes("Node")) {
-  //   const fullContractSource = `${factoryArtifact.sourceName}:${factoryArtifact.contractName}`;
-
-  //   await hre.run("verify:verify", {
-  //     address: FACTORY_ADDRESS,
-  //     constructorArguments: constructorArguments,
-  //     contract: fullContractSource,
-  //     noCompile: true,
-  //   });
-  //}
+  if (!hre.network.name.includes("Node")) {
+    const fullContractSource = `${factoryArtifact.sourceName}:${factoryArtifact.contractName}`;
+    await hre.run("verify:verify", {
+      address: FACTORY_ADDRESS,
+      constructorArguments: constructorArguments,
+      contract: fullContractSource,
+      noCompile: true,
+    });
+  }
 }
