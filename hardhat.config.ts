@@ -25,7 +25,7 @@ const config: HardhatUserConfig = {
     zkSophonTestnet: {
       url: "https://rpc.testnet.sophon.xyz",
       ethNetwork: "sepolia",
-      verifyURL: "https://api-explorer-verify.testnet.sophon.xyz",
+      verifyURL: "https://api-explorer-verify.testnet.sophon.xyz/contract_verification",
       zksync: true,
       accounts: [process.env.WALLET_PRIVATE_KEY as any]
     }
