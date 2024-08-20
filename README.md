@@ -63,7 +63,7 @@ yarn hardhat deploy-zksync --network zkSophonTestnet --script deployFactoryOnSop
 cast send <factory_address> "createAccountWithNonce(address,bytes32,bool)" <admin_address> $(cast --to-bytes32 <nonce>)  "true"  --rpc-url https://rpc.testnet.sophon.xyz  --chain 531050104 --private-key $WALLET_PRIVATE_KEY
 ```
 
-Note: The account address is the first parameter of the [AccountCreated event](https://explorer.testnet.sophon.xyz/address/0xc5974add8EAC9a6f74b539be470BF934641DC85E#events). Calling the `createAcccountWithNonce` with same params will trigger the event only once.
+Note: The account address is the first parameter of the [AccountCreated event](https://explorer.testnet.sophon.xyz/address/0xc5974add8EAC9a6f74b539be470BF934641DC85E#events) from the Factory Contract. Calling the `createAcccountWithNonce` with same params will trigger the event only once.
 
 
 ## Narrative

@@ -2,6 +2,8 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@matterlabs/hardhat-zksync";
 import dotenv from "dotenv";
 
+import "./scripts/mintOnSophon.ts";
+
 // Load env file
 dotenv.config()
 
