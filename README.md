@@ -36,6 +36,35 @@
   yarn hardhat compile
 ```
 
+### Deploy
+
+```
+yarn hardhat deploy-zksync --network <NETWORK> --script <deploymentScript.ts>
+```
+
+NETWORK must be a `key` of the `networks` object in the `hardhat.config.ts` ans `deploymentScript` must be a script in the `deploy` directory.
+
+Openfort Accounts deployments on [Sophon](https://explorer.testnet.sophon.xyz/):
+
+Associated account to `private_key` must be whitelisted in the Sophon paymaster.
+No SOPH$ token required.
+
+```
+export WALLET_PRIVATE_KEY=<private_key> # Associated account to private_key must be whitelisted in the Sophon paymaster. No SOPH$ token required.
+yarn hardhat deploy-zksync --network zkSophonTestnet --script deployAccountOnSophon.ts
+
+export ACCOUNT_IMPLEMENTATION_ADDRESS=<deployed_account>
+yarn hardhat deploy-zksync --network zkSophonTestnet --script deployFactoryOnSophon.ts
+```
+
+### Interact
+
+```
+cast send <factory_address> "createAccountWithNonce(address,bytes32,bool)" <admin_address> $(cast --to-bytes32 <nonce>)  "true"  --rpc-url https://rpc.testnet.sophon.xyz  --chain 531050104 --private-key $WALLET_PRIVATE_KEY
+```
+
+Note: The account address is the first parameter of the [AccountCreated event](https://explorer.testnet.sophon.xyz/address/0xc5974add8EAC9a6f74b539be470BF934641DC85E#events). Calling the `createAcccountWithNonce` with same params will trigger the event only once.
+
 
 ## Narrative
 
