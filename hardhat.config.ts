@@ -2,9 +2,12 @@ import { HardhatUserConfig } from "hardhat/config"
 import "@matterlabs/hardhat-zksync"
 import dotenv from "dotenv"
 
-import "./tasks/prepareTests.ts"
+
+import "./tasks/createAccount.ts"
 import "./tasks/deployAccount.ts"
 import "./tasks/deployFactory.ts"
+import "./tasks/prepareTests.ts"
+
 
 // Load env file
 dotenv.config()

@@ -21,6 +21,7 @@ task("deploy-factory", "Deploy an Openfort Factory")
 
         if (!args.account) {
             args.account = await hre.run("deploy-account", { verify: args.verify })
+            console.log(`Account implementation deployed to ${args.account}`)
         }
 
         const constructorArguments = [
@@ -59,8 +60,7 @@ task("deploy-factory", "Deploy an Openfort Factory")
             // verification of implementation contract always fail
             // because it has already been verified
             // on failure: print error and do nothing
-            // don't do that in production code
-            // OK in a test setup
+            // don't do that in production code, only in test setup
             try {
                 await hre.run("verify:verify", {
                     address: FACTORY_ADDRESS,
@@ -72,5 +72,8 @@ task("deploy-factory", "Deploy an Openfort Factory")
                 console.log(e)
             }
         }
-        return FACTORY_ADDRESS;
+        return {
+            factory: FACTORY_ADDRESS,
+            implementation: args.account
+        }
     });
