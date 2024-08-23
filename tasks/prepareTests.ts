@@ -1,5 +1,5 @@
-import { createWalletClient, createPublicClient, http, defineChain } from "viem"
-import { eip712WalletActions, chainConfig, toSinglesigSmartAccount, zksyncSepoliaTestnet } from "viem/zksync"
+import { defineChain } from "viem"
+import { chainConfig, zksyncSepoliaTestnet } from "viem/zksync"
 import { task } from "hardhat/config"
 
 
@@ -18,29 +18,8 @@ task("test")
       address = await hre.run("create-account", { factory, implementation, nonce: args.accountNonce })
     }
 
-
-    const publicClient = createPublicClient({
-      chain,
-      transport: http(),
-    })
-
-    const walletClient = createWalletClient({
-      chain,
-      transport: http(hre.network.config.url),
-    }).extend(eip712WalletActions())
-
-
-    // configure viem smart account
-    const account = toSinglesigSmartAccount({
-      address: address as `0x${string}`,
-      privateKey: hre.network.config.accounts[0],
-    })
-
-
-    // Attach walletClient and account to hre for access in tests
-    hre.publicClient = publicClient
-    hre.walletClient = walletClient
-    hre.account = account
+    hre.chain = chain
+    hre.openfortAccountAddress = address
 
     return runSuper()
   })
