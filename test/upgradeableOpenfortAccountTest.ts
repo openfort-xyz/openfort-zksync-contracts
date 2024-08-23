@@ -4,10 +4,12 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { eip712WalletActions, getGeneralPaymasterInput, toSinglesigSmartAccount } from "viem/zksync"
 import { createWalletClient, createPublicClient, http } from "viem"
 
-//TODO: fixture this shit
+import { getViemChainFromConfig, writeContract } from "../tasks/utils"
+
+//TODO: FIXTURE THIS
 
 const owner = privateKeyToAccount(hre.network.config.accounts[0])
-const chain = hre.chain
+const chain = getViemChainFromConfig()
 const openfortAccountAddress = hre.openfortAccountAddress
 
 const publicClient = createPublicClient({
@@ -15,7 +17,7 @@ const publicClient = createPublicClient({
     transport: http(),
   })
 
-  const walletClient = createWalletClient({
+const walletClient = createWalletClient({
     chain,
     transport: http(hre.network.config.url),
   }).extend(eip712WalletActions())
@@ -29,85 +31,96 @@ const publicClient = createPublicClient({
 
 
 describe("ERC20 interactions from Openfort Account", function () {
-
     const MOCK_ERC20 = "0x0a433954E786712354c5917D0870895c29EF7AE4";
+    interface Tokens {
+        mockERC20?: `0x${string}`;
+    }
+    let tokens: Tokens = {};
 
+    async function deployTokens() {
+        if (!tokens.mockERC20) {
+            const artifact = await hre.deployer.loadArtifact("MockERC20");
+            const contract = await hre.deployer.deploy(artifact, [], "create")
+            tokens.mockERC20 = await contract.getAddress()
+            console.log(`MockERC20 deployed at ${tokens.mockERC20}`)
+        }
+    }
 
     it("sign with owner: balance should be updated", async function () {
-        // Get initial balance
 
+        await deployTokens()
+
+        // Balance check don't always update on time - Skipping for now
         const initialBalance = await publicClient.readContract({
             account: accountWithOwner,
-            address: MOCK_ERC20,
+            address: tokens.mockERC20!,
             abi: parseAbi(["function balanceOf(address owner) external view returns (uint256)"]),
             functionName: "balanceOf",
             args: [openfortAccountAddress],
         });
 
         const amount = BigInt(42)
-
-        console.log(`initial balance ${initialBalance}`)
         // Mint tokens
-        const hash = await walletClient.writeContract({
+        await writeContract(walletClient, {
             account: accountWithOwner,
-            address: MOCK_ERC20,
+            address: tokens.mockERC20!,
             abi: parseAbi(["function mint(address sender, uint256 amount) external"]),
             functionName: "mint",
-            args: [openfortAccountAddress, amount],
-            paymaster: process.env.SOPHON_TESTNET_PAYMASTER_ADDRESS,
-            paymasterInput: getGeneralPaymasterInput({ innerInput: new Uint8Array() }),
-        });
-        console.log("Transaction Hash:", hash);
+            args: [openfortAccountAddress, amount]
+        })
+
         // Get final balance
         const finalBalance = await publicClient.readContract({
             account: accountWithOwner,
-            address: MOCK_ERC20,
+            address: tokens.mockERC20!,
             abi: parseAbi(["function balanceOf(address owner) external view returns (uint256)"]),
             functionName: "balanceOf",
             args: [openfortAccountAddress],
         });
-        console.log(`final balance ${finalBalance}`)
+
         // Assert that the final balance is the initial balance plus the minted amount
+
+        // WARNING: CAN FAIL WHEN TESTING ON REMOTE NETWORK
+        // (flaky on Sophon)
         expect(finalBalance - initialBalance).to.equal(amount);
     });
 
     it("sign with valid session key: balance should be updated", async function () {
+
+        await deployTokens()
         const blockTimestamp = (await publicClient.getBlock()).timestamp
+
+        // generate a new private key
+        // to avoid Account contract reverts with "SessionKey already registered"
 
         const sessionKey = generatePrivateKey()
         const sessionKeyAddress = privateKeyToAccount(sessionKey).address
 
-        console.log(sessionKey)
+        // setup openfort smart account with session key as signer
         const accountWithSessionKey = toSinglesigSmartAccount({
             address: openfortAccountAddress,
             privateKey: sessionKey
           })
 
         // register a new random sessionKey
-        await walletClient.writeContract({
+        await writeContract(walletClient, {
             account: owner,
             address: openfortAccountAddress,
             abi: parseAbi(["function registerSessionKey(address, uint48, uint48, uint48, address[]) external"]),
             functionName: "registerSessionKey",
+            // Session Key is valid for 24 hours
             args: [sessionKeyAddress, blockTimestamp, blockTimestamp + BigInt(24 * 60 * 60), 100, []],
-            paymaster: process.env.SOPHON_TESTNET_PAYMASTER_ADDRESS,
-            paymasterInput: getGeneralPaymasterInput({ innerInput: new Uint8Array() }),
-        });
-
-        const amount = BigInt(42)
+        })
 
         // sign with the new sessionKey
-        await walletClient.writeContract({
+        const amount = BigInt(42)
+        await writeContract(walletClient,{
             account: accountWithSessionKey,
             address: openfortAccountAddress,
             abi: parseAbi(["function mint(address sender, uint256 amount) external"]),
             functionName: "mint",
             args: [openfortAccountAddress, amount],
-            paymaster: process.env.SOPHON_TESTNET_PAYMASTER_ADDRESS,
-            paymasterInput: getGeneralPaymasterInput({ innerInput: new Uint8Array() }),
-        });
-
-
+        })
     })
 
 })

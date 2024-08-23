@@ -2,12 +2,10 @@ import { HardhatUserConfig } from "hardhat/config"
 import "@matterlabs/hardhat-zksync"
 import dotenv from "dotenv"
 
-
 import "./tasks/createAccount.ts"
 import "./tasks/deployAccount.ts"
 import "./tasks/deployFactory.ts"
 import "./tasks/prepareTests.ts"
-
 
 // Load env file
 dotenv.config()
@@ -20,6 +18,7 @@ const config: HardhatUserConfig = {
       url: "http://127.0.0.1:8011", // URL for the zkSync testnet
       ethNetwork: "mainnet", // The Ethereum network where zkSync operates (use "mainnet" for production)
       zksync: true,
+      accounts: ["0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e"]
     },
     zkTestnet: {
       url: "https://sepolia.era.zksync.dev", // The testnet RPC URL of ZKsync Era network.
