@@ -31,18 +31,23 @@ const walletClient = createWalletClient({
 
 
 describe("ERC20 interactions from Openfort Account", function () {
-    const MOCK_ERC20 = "0x0a433954E786712354c5917D0870895c29EF7AE4";
+    const MOCK_ERC20_ON_SOPHON = "0x0a433954E786712354c5917D0870895c29EF7AE4";
     interface Tokens {
-        mockERC20?: `0x${string}`;
+        mockERC20: `0x${string}`;
     }
-    let tokens: Tokens = {};
+    let tokens: Tokens = {
+        mockERC20: MOCK_ERC20_ON_SOPHON
+    };
 
     async function deployTokens() {
-        if (!tokens.mockERC20) {
+
+        // use alreayd whitelisted mocks on Sophon
+        if (chain.name != "Sophon" && !tokens.mockERC20) {
+            console.log("salut")
             const artifact = await hre.deployer.loadArtifact("MockERC20");
             const contract = await hre.deployer.deploy(artifact, [], "create")
             tokens.mockERC20 = await contract.getAddress()
-            console.log(`MockERC20 deployed at ${tokens.mockERC20}`)
+            console.log(`MockERC20 deployed to ${tokens.mockERC20}`)
         }
     }
 
@@ -53,7 +58,7 @@ describe("ERC20 interactions from Openfort Account", function () {
         // Balance check don't always update on time - Skipping for now
         const initialBalance = await publicClient.readContract({
             account: accountWithOwner,
-            address: tokens.mockERC20!,
+            address: tokens.mockERC20,
             abi: parseAbi(["function balanceOf(address owner) external view returns (uint256)"]),
             functionName: "balanceOf",
             args: [openfortAccountAddress],
@@ -72,7 +77,7 @@ describe("ERC20 interactions from Openfort Account", function () {
         // Get final balance
         const finalBalance = await publicClient.readContract({
             account: accountWithOwner,
-            address: tokens.mockERC20!,
+            address: tokens.mockERC20,
             abi: parseAbi(["function balanceOf(address owner) external view returns (uint256)"]),
             functionName: "balanceOf",
             args: [openfortAccountAddress],
@@ -114,13 +119,16 @@ describe("ERC20 interactions from Openfort Account", function () {
 
         // sign with the new sessionKey
         const amount = BigInt(42)
-        await writeContract(walletClient,{
+        console.log(tokens.mockERC20!)
+
+        const hash = await writeContract(walletClient,{
             account: accountWithSessionKey,
-            address: openfortAccountAddress,
+            address: tokens.mockERC20,
             abi: parseAbi(["function mint(address sender, uint256 amount) external"]),
             functionName: "mint",
             args: [openfortAccountAddress, amount],
         })
+        console.log(hash)
     })
 
 })
