@@ -36,34 +36,61 @@
   yarn hardhat compile
 ```
 
+
+### Test
+
+
+Run e2e tests on a freshly created account deployed from a fresh factory (long setup time)
+
+```
+yarn hardhat test --network <zkSophonTestnet|zkTestnet|zkSyncLocal>  --account-nonce <number>
+```
+
+Skip deployments, Run test directly
+
+```
+export ACCOUNT_IMPLEMENTATION_ADDRESS=<DEPLOYED_AND_INITIALIZED_ACCOUNT>
+yarn hardhat test --network <zkSophonTestnet|zkTestnet|zkSyncLocal> --skipDeployments
+```
+
 ### Deploy
 
 ```
-yarn hardhat deploy-zksync --network <NETWORK> --script <deploymentScript.ts>
+WALLET_PRIVATE_KEY= # account must have postivie balance to deploy on zkTestnet (Sepolia) OR be whitelisted on Sophon Paymaster to deploy on Sophon testnet
+
+SOPHON_TESTNET_PAYMASTER_ADDRESS= # only required to deploy on Sophon
 ```
 
-NETWORK must be a `key` of the `networks` object in the `hardhat.config.ts` ans `deploymentScript` must be a script in the `deploy` directory.
-
-Openfort Accounts deployments on [Sophon](https://explorer.testnet.sophon.xyz/):
-
-Associated account to `private_key` must be whitelisted in the Sophon paymaster.
-No SOPH$ token required.
-
+[UpgradeableOpenfortAccount](./contracts/core/upgradeable/UpgradeableOpenfortAccount.sol)
 ```
-export WALLET_PRIVATE_KEY=<private_key> # Associated account to private_key must be whitelisted in the Sophon paymaster. No SOPH$ token required.
-yarn hardhat deploy-zksync --network zkSophonTestnet --script deployAccountOnSophon.ts
-
-export ACCOUNT_IMPLEMENTATION_ADDRESS=<deployed_account>
-yarn hardhat deploy-zksync --network zkSophonTestnet --script deployFactoryOnSophon.ts
+yarn hardhat deploy-account --network <zkSophonTestnet|zkTestnet|zkSyncLocal>
 ```
+
+
+[UpgradeableOpenfortFactory](./contracts/core/upgradeable/UpgradeableOpenfortFactory.sol)
+```
+# account is optional. script will deploy one if not provided. 
+yarn hardhat deploy-factory --account <DEPLOYED_ACCOUNT> --network <zkSophonTestnet|zkTestnet|zkSyncLocal>
+```
+
 
 ### Interact
 
+Call `createAccountWithNounce` factory function to deploy an account proxy and initialize it with the account implementaton
+
 ```
-cast send <factory_address> "createAccountWithNonce(address,bytes32,bool)" <admin_address> $(cast --to-bytes32 <nonce>)  "true"  --rpc-url https://rpc.testnet.sophon.xyz  --chain 531050104 --private-key $WALLET_PRIVATE_KEY
+yarn hardhat create-account --factory <FACTORY> --implementation <ACCOUNT_IMPLEMENTATION> --nonce <number> --network <zkSophonTestnet|zkTestnet|zkSyncLocal>
 ```
 
-Note: The account address is the first parameter of the [AccountCreated event](https://explorer.testnet.sophon.xyz/address/0xc5974add8EAC9a6f74b539be470BF934641DC85E#events) from the Factory Contract. Calling the `createAcccountWithNonce` with same params will trigger the event only once.
+
+### Helper
+
+Compute the address of any account
+
+https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#address-derivation
+```
+yarn hardhat get-account --factory <FACTORY> --implementation <ACCOUNT_IMPLEMENTATION> --nonce <number>
+```
 
 
 ## Narrative
