@@ -1,13 +1,13 @@
 import { expect } from "chai"
 import { parseAbi } from "viem"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
-import { eip712WalletActions, getGeneralPaymasterInput, toSinglesigSmartAccount } from "viem/zksync"
+import { eip712WalletActions, toSinglesigSmartAccount } from "viem/zksync"
 import { createWalletClient, createPublicClient, http } from "viem"
 
 import { getViemChainFromConfig, writeContract } from "../tasks/utils"
 
-//TODO: FIXTURE THIS
 
+// Global test config
 const owner = privateKeyToAccount(hre.network.config.accounts[0])
 const chain = getViemChainFromConfig()
 const openfortAccountAddress = hre.openfortAccountAddress
@@ -23,8 +23,8 @@ const walletClient = createWalletClient({
   }).extend(eip712WalletActions())
 
 
-  // configure viem smart account
-  const accountWithOwner = toSinglesigSmartAccount({
+// configure viem smart account
+const accountWithOwner = toSinglesigSmartAccount({
     address: openfortAccountAddress, // custom addition from prepareTest
     privateKey: hre.network.config.accounts[0],
   })
@@ -40,10 +40,9 @@ describe("ERC20 interactions from Openfort Account", function () {
     };
 
     async function deployTokens() {
-
         // use alreayd whitelisted mocks on Sophon
+        // deploy token contracts only once for all tests on other chains
         if (chain.name != "Sophon" && !tokens.mockERC20) {
-            console.log("salut")
             const artifact = await hre.deployer.loadArtifact("MockERC20");
             const contract = await hre.deployer.deploy(artifact, [], "create")
             tokens.mockERC20 = await contract.getAddress()
@@ -52,9 +51,7 @@ describe("ERC20 interactions from Openfort Account", function () {
     }
 
     it("sign with owner: balance should be updated", async function () {
-
         await deployTokens()
-
         // Balance check don't always update on time - Skipping for now
         const initialBalance = await publicClient.readContract({
             account: accountWithOwner,
@@ -73,7 +70,6 @@ describe("ERC20 interactions from Openfort Account", function () {
             functionName: "mint",
             args: [openfortAccountAddress, amount]
         })
-
         // Get final balance
         const finalBalance = await publicClient.readContract({
             account: accountWithOwner,
@@ -84,9 +80,6 @@ describe("ERC20 interactions from Openfort Account", function () {
         });
 
         // Assert that the final balance is the initial balance plus the minted amount
-
-        // WARNING: CAN FAIL WHEN TESTING ON REMOTE NETWORK
-        // (flaky on Sophon)
         expect(finalBalance - initialBalance).to.equal(amount);
     });
 
