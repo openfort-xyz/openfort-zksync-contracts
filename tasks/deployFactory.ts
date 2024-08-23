@@ -1,5 +1,4 @@
 import { utils, Wallet } from "zksync-ethers";
-import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { task } from "hardhat/config"
 
 task("deploy-factory", "Deploy an Openfort Factory")

@@ -1,4 +1,4 @@
-import { createWalletClient, http, defineChain } from "viem"
+import { createWalletClient, createPublicClient, http, defineChain } from "viem"
 import { eip712WalletActions, chainConfig, toSinglesigSmartAccount, zksyncSepoliaTestnet } from "viem/zksync"
 import { task } from "hardhat/config"
 
@@ -9,27 +9,40 @@ task("test")
   .setAction(async (args, hre, runSuper) => {
 
     let address = process.env.ACCOUNT_IMPLEMENTATION_ADDRESS
-    const isSophon = hre.network.config.url.includes("sophon")
+    const chain = hre.network.config.url.includes("sophon") ? sophon : zksyncSepoliaTestnet
 
     if (!args.skipDeployments) {
       const {factory, implementation} = await hre.run("deploy-factory")
       // wait for sophon backend service to whitelist the factory in their paymaster
-      if (isSophon) sleep(60000)
+      if (chain == sophon) sleep(60000)
       address = await hre.run("create-account", { factory, implementation, nonce: args.accountNonce })
     }
 
-    // configure viem smart account
+
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(),
+    })
+
     const walletClient = createWalletClient({
-      chain: isSophon ? sophon : zksyncSepoliaTestnet,
+      chain,
       transport: http(hre.network.config.url),
     }).extend(eip712WalletActions())
 
+
+    // configure viem smart account
     const account = toSinglesigSmartAccount({
       address: address as `0x${string}`,
       privateKey: hre.network.config.accounts[0],
     })
 
-    return runSuper(walletClient, account)
+
+    // Attach walletClient and account to hre for access in tests
+    hre.publicClient = publicClient
+    hre.walletClient = walletClient
+    hre.account = account
+
+    return runSuper()
   })
 
 
