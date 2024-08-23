@@ -1,5 +1,4 @@
 import { utils } from "zksync-ethers"
-
 import { task } from "hardhat/config"
 
 task("deploy-account", "Deploy an Openfort Upgradeable Account")

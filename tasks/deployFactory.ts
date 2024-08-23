@@ -21,7 +21,6 @@ task("deploy-factory", "Deploy an Openfort Factory")
 
         if (!args.account) {
             args.account = await hre.run("deploy-account", { verify: args.verify })
-            console.log(`Account implementation deployed to ${args.account}`)
         }
 
         const constructorArguments = [

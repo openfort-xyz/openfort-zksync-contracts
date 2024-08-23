@@ -1,5 +1,5 @@
 import { createWalletClient, http, defineChain } from "viem"
-import { eip712WalletActions, chainConfig, toSinglesigSmartAccount, zksync } from "viem/zksync"
+import { eip712WalletActions, chainConfig, toSinglesigSmartAccount, zksyncSepoliaTestnet } from "viem/zksync"
 import { task } from "hardhat/config"
 
 
@@ -9,15 +9,18 @@ task("test")
   .setAction(async (args, hre, runSuper) => {
 
     let address = process.env.ACCOUNT_IMPLEMENTATION_ADDRESS
+    const isSophon = hre.network.config.url.includes("sophon")
 
     if (!args.skipDeployments) {
       const {factory, implementation} = await hre.run("deploy-factory")
+      // wait for sophon backend service to whitelist the factory in their paymaster
+      if (isSophon) sleep(60000)
       address = await hre.run("create-account", { factory, implementation, nonce: args.accountNonce })
     }
 
     // configure viem smart account
     const walletClient = createWalletClient({
-      chain: hre.network.config.url.includes("sophon") ? sophon : zksync,
+      chain: isSophon ? sophon : zksyncSepoliaTestnet,
       transport: http(hre.network.config.url),
     }).extend(eip712WalletActions())
 
@@ -56,3 +59,7 @@ task("test")
     },
     testnet: true,
   })
+
+function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
