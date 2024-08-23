@@ -26,7 +26,6 @@
 # Openfort ZKSync contracts - WORK IN PROGRESS
 
 
-
 ## Development
 
 ### Build
@@ -43,7 +42,7 @@
 Run e2e tests on a freshly created account deployed from a fresh factory (long setup time)
 
 ```
-yarn hardhat test --network <zkSophonTestnet|zkTestnet|zkSyncLocal>  --account-nonce <number>
+yarn hardhat test --network <zkSophonTestnet|zkTestnet|zkSyncLocal>  --nonce <number>
 ```
 
 Skip deployments, Run test directly
@@ -56,7 +55,7 @@ yarn hardhat test --network <zkSophonTestnet|zkTestnet|zkSyncLocal> --skipDeploy
 ### Deploy
 
 ```
-WALLET_PRIVATE_KEY= # account must have postivie balance to deploy on zkTestnet (Sepolia) OR be whitelisted on Sophon Paymaster to deploy on Sophon testnet
+WALLET_PRIVATE_KEY= # account must have positive balance to deploy on zkTestnet (Sepolia) OR be whitelisted on Sophon Paymaster to deploy on Sophon testnet
 
 SOPHON_TESTNET_PAYMASTER_ADDRESS= # only required to deploy on Sophon
 ```
