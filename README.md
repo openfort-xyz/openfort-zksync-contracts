@@ -26,7 +26,6 @@
 # Openfort ZKSync contracts - WORK IN PROGRESS
 
 
-## Development
 
 ### Build
 ```
@@ -45,11 +44,13 @@ Run e2e tests on a freshly created account deployed from a fresh factory (long s
 yarn hardhat test --network <zkSophonTestnet|zkTestnet|zkSyncLocal>  --nonce <number>
 ```
 
-Skip deployments, Run test directly
+Running tests with the `zkSyncLocal` network requires a running local zkSync node: [download](https://github.com/matter-labs/era-test-node) and run `era_test_node fork mainnet` on another terminal *before* running the tests.
+
+Run e2e tests directly, skip deployments
 
 ```
 export ACCOUNT_IMPLEMENTATION_ADDRESS=<DEPLOYED_AND_INITIALIZED_ACCOUNT>
-yarn hardhat test --network <zkSophonTestnet|zkTestnet|zkSyncLocal> --skipDeployments
+yarn hardhat test --network <zkSophonTestnet|zkTestnet|zkSyncLocal> --skip-deployments
 ```
 
 ### Deploy
@@ -75,7 +76,7 @@ yarn hardhat deploy-factory --account <DEPLOYED_ACCOUNT> --network <zkSophonTest
 
 ### Interact
 
-Call `createAccountWithNounce` factory function to deploy an account proxy and initialize it with the account implementaton
+Call `createAccountWithNounce` factory function to deploy an account proxy and initialize it with the account implementation
 
 ```
 yarn hardhat create-account --factory <FACTORY> --implementation <ACCOUNT_IMPLEMENTATION> --nonce <number> --network <zkSophonTestnet|zkTestnet|zkSyncLocal>
