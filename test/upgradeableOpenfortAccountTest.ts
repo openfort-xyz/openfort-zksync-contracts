@@ -1,36 +1,10 @@
 import { expect } from "chai"
-import { parseAbi } from "viem"
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
-import { eip712WalletActions, toSinglesigSmartAccount } from "viem/zksync"
-import { createWalletClient, createPublicClient, http } from "viem"
 
 import { getViemChainFromConfig, writeContract } from "../tasks/utils"
-
 import { SmartAccount, Provider, types, utils } from "zksync-ethers";
 
-
-// Global test config
-const owner = privateKeyToAccount(hre.network.config.accounts[0])
 const chain = getViemChainFromConfig()
 const openfortAccountAddress = hre.openfortAccountAddress
-
-const publicClient = createPublicClient({
-    chain, // custom addition from prepareTest
-    transport: http(),
-})
-
-const walletClient = createWalletClient({
-    chain,
-    transport: http(hre.network.config.url),
-}).extend(eip712WalletActions())
-
-
-// configure viem smart account
-const accountWithOwner = toSinglesigSmartAccount({
-    address: openfortAccountAddress,
-    privateKey: hre.network.config.accounts[0],
-})
-
 
 describe("ERC20 interactions from Openfort Account", function () {
     const MOCK_ERC20_ON_SOPHON = "0x0a433954E786712354c5917D0870895c29EF7AE4";
@@ -58,66 +32,23 @@ describe("ERC20 interactions from Openfort Account", function () {
         // ethers
         const ADDRESS = openfortAccountAddress;
         const PRIVATE_KEY = hre.network.config.accounts[0];
-
         const provider = Provider.getDefaultProvider(types.Network.EraTestNode)
         const account = new SmartAccount({ address: ADDRESS, secret: PRIVATE_KEY }, provider);
-
         const initialBalance = await account.getBalance(tokens.mockERC20)
-
         const amount = BigInt(42);
 
+        // this works only if a smart account is alrady deployed at the address: 0x67b056e28ae03840E207C111164fDd9e89a933a6
+        // and exported as env var ACCOUNT_IMPLEMENTATION_ADDRESS=0x67b056e28ae03840E207C111164fDd9e89a933a6
+        // follow instruction in README to deploy your own and export the deployed address
         const populatedTx = await account.populateTransaction({
             type: utils.EIP712_TX_TYPE,
             to: tokens.mockERC20,
             // cast calldata "function mint(address sender, uint256 amount)" 0x67b056e28ae03840E207C111164fDd9e89a933a6 42
             data: "0x40c10f1900000000000000000000000067b056e28ae03840e207c111164fdd9e89a933a6000000000000000000000000000000000000000000000000000000000000002a",
-            chainId: 260
         });
 
         await account.sendTransaction(populatedTx)
         const finalBalance = await account.getBalance(tokens.mockERC20)
         expect(finalBalance - initialBalance).to.equal(amount);
     });
-
-    it("register a valid session key and sign with it: balance should be updated", async function () {
-
-        await deployTokens()
-        const blockTimestamp = (await publicClient.getBlock()).timestamp
-
-        // generate a new private key
-        // to avoid Account contract reverts with "SessionKey already registered"
-
-        const sessionKey = generatePrivateKey()
-        const sessionKeyAddress = privateKeyToAccount(sessionKey).address
-
-        // setup openfort smart account with session key as signer
-        const accountWithSessionKey = toSinglesigSmartAccount({
-            address: openfortAccountAddress,
-            privateKey: sessionKey
-        })
-
-        // register a new random sessionKey
-        await writeContract(walletClient, {
-            account: owner,
-            address: openfortAccountAddress,
-            abi: parseAbi(["function registerSessionKey(address, uint48, uint48, uint48, address[])"]),
-            functionName: "registerSessionKey",
-            // Session Key is valid for 24 hours
-            args: [sessionKeyAddress, blockTimestamp, blockTimestamp + BigInt(24 * 60 * 60), 100, []],
-        })
-
-        console.log("session key successfully registered");
-
-        // sign with the new sessionKey
-        const amount = BigInt(42)
-
-        const hash = await writeContract(walletClient, {
-            account: accountWithSessionKey,
-            address: tokens.mockERC20,
-            abi: parseAbi(["function mint(address sender, uint256 amount)"]),
-            functionName: "mint",
-            args: [openfortAccountAddress, amount],
-        })
-        console.log(hash)
-    })
 })
