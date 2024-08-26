@@ -12,19 +12,19 @@ dotenv.config()
 
 const config: HardhatUserConfig = {
   defaultNetwork: "zkSyncLocal",
-  // era_test_node fork mainnet
+  // $ era_test_node fork mainnet
   networks: {
     zkSyncLocal: {
-      url: "http://127.0.0.1:8011", // URL for the zkSync testnet
-      ethNetwork: "mainnet", // The Ethereum network where zkSync operates (use "mainnet" for production)
+      url: "http://127.0.0.1:8011",
+      ethNetwork: "mainnet",
       zksync: true,
+      // constant accounts on era_test_node: https://github.com/matter-labs/era-test-node
       accounts: ["0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e"]
     },
     zkTestnet: {
-      url: "https://sepolia.era.zksync.dev", // The testnet RPC URL of ZKsync Era network.
-      ethNetwork: "sepolia", // The Ethereum Web3 RPC URL, or the identifier of the network (e.g. `mainnet` or `sepolia`)
+      url: "https://sepolia.era.zksync.dev",
+      ethNetwork: "sepolia",
       zksync: true,
-      // Verification endpoint for Sepolia
       verifyURL: "https://explorer.sepolia.era.zksync.dev/contract_verification",
       accounts: [process.env.WALLET_PRIVATE_KEY as any]
     },
@@ -37,7 +37,7 @@ const config: HardhatUserConfig = {
     }
   },
   zksolc: {
-    version: "1.5.2", // Check for the latest version
+    version: "1.5.2",
     settings: {
       enableEraVMExtensions: true
       // find all available options in the official documentation

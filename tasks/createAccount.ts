@@ -16,7 +16,7 @@ task("create-account", "Create and Initialize an Openfort Upgradeable Account")
       transport: http(hre.network.config.url),
     }).extend(eip712WalletActions())
 
-    const account = privateKeyToAccount(process.env.WALLET_PRIVATE_KEY as `0x${string}`)
+    const account = privateKeyToAccount(hre.network.config.accounts[0])
     const nonce = numberToHex(args.nonce, {size: 32})
     const contractOptions = {
       account,
@@ -37,7 +37,7 @@ task("get-account", "Compute zkSync create2 address of an account")
   .addParam("implementation", "Account Implementation address")
   .addParam("nonce", "Number to generate predictive address with CREATE2")
   .setAction(async (args, hre) => {
-    const account = privateKeyToAccount(process.env.WALLET_PRIVATE_KEY as `0x${string}`)
+    const account = privateKeyToAccount(hre.network.config.accounts[0])
     const proxyArtifactName = "UpgradeableOpenfortProxy";
     const proxyArtifact = await hre.deployer.loadArtifact(proxyArtifactName);
     const abiTypes = parseAbiParameters("address, bytes32");
