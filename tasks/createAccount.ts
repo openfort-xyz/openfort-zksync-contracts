@@ -1,9 +1,10 @@
-import { createWalletClient, http, parseAbi, numberToHex, keccak256, encodeAbiParameters, parseAbiParameters, defineChain } from "viem"
+import { createWalletClient, http, parseAbi, numberToHex, keccak256, encodeAbiParameters, parseAbiParameters, parseEther } from "viem"
 import { eip712WalletActions } from "viem/zksync"
 import { privateKeyToAccount } from "viem/accounts"
 import { utils } from "zksync-ethers"
 import { task } from "hardhat/config"
 import { getViemChainFromConfig, writeContract } from "./utils"
+
 
 task("create-account", "Create and Initialize an Openfort Upgradeable Account")
   .addParam("factory", "Factory address")
@@ -28,6 +29,18 @@ task("create-account", "Create and Initialize an Openfort Upgradeable Account")
 
     await writeContract(walletClient, contractOptions)
     const accountProxy = await hre.run("get-account", { factory: args.factory, implementation: args.implementation, nonce })
+
+    // send enough funds to Openfort smart accounts on zkSyncSepolia or local
+    // for the entire end to tend test suite
+    // on Sophon use paymaster
+    if (chain.name != "Sophon" ) {
+        // no need to await here -- funds will be on the account on-time
+        walletClient.sendTransaction({
+            account,
+            to: accountProxy,
+            value: parseEther("0.001"),
+        })
+    }
     return accountProxy
   })
 
