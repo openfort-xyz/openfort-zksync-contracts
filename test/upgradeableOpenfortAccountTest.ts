@@ -35,14 +35,14 @@ describe("ERC20 interactions from Openfort Account", function () {
     interface Tokens {
         mockERC20: `0x${string}`;
     }
-    let tokens: Tokens = {
+    const tokens: Tokens = {
         mockERC20: MOCK_ERC20_ON_SOPHON
     };
 
     async function deployTokens() {
         // use alreayd whitelisted mocks on Sophon
         // deploy token contracts only once for all tests on other chains
-        if (chain.name != "Sophon" && !tokens.mockERC20) {
+        if (chain.name != "Sophon" && tokens.mockERC20 == MOCK_ERC20_ON_SOPHON) {
             const artifact = await hre.deployer.loadArtifact("MockERC20");
             const contract = await hre.deployer.deploy(artifact, [], "create")
             tokens.mockERC20 = await contract.getAddress()
@@ -83,7 +83,7 @@ describe("ERC20 interactions from Openfort Account", function () {
         expect(finalBalance - initialBalance).to.equal(amount);
     });
 
-    it("sign with valid session key: balance should be updated", async function () {
+    it("register a valid session key and sign with it: balance should be updated", async function () {
 
         await deployTokens()
         const blockTimestamp = (await publicClient.getBlock()).timestamp
@@ -123,5 +123,4 @@ describe("ERC20 interactions from Openfort Account", function () {
         })
         console.log(hash)
     })
-
 })
