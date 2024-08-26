@@ -52,7 +52,6 @@ describe("ERC20 interactions from Openfort Account", function () {
 
     it("sign with owner: balance should be updated", async function () {
         await deployTokens()
-        // Balance check don't always update on time - Skipping for now
         const initialBalance = await publicClient.readContract({
             account: accountWithOwner,
             address: tokens.mockERC20,

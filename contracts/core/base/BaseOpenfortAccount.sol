@@ -28,6 +28,9 @@ import {TokenCallbackHandler} from "./TokenCallbackHandler.sol";
 import {OpenfortErrors} from "../../interfaces/OpenfortErrors.sol";
 import {OpenfortEvents} from "../../interfaces/OpenfortEvents.sol";
 
+
+import {console} from "hardhat/console.sol";
+
 /**
  * @title BaseOpenfortAccount (Non upgradeable by default)
  * @notice Smart contract wallet following the ZKsync AA standard with session keys support.
@@ -109,8 +112,8 @@ abstract contract BaseOpenfortAccount is
         internal
         returns (bytes4 magic)
     {
+        console.log("ENTERING TRANSACTION VALIDATION: from %s and to %s", address(uint160(_transaction.from)), address(uint160(_transaction.to)));
         // Incrementing the nonce of the account.
-        // Note, that reserved[0] by convention is currently equal to the nonce passed in the transaction
         SystemContractsCaller.systemCallWithPropagatedRevert(
             uint32(gasleft()),
             address(NONCE_HOLDER_SYSTEM_CONTRACT),
@@ -126,7 +129,12 @@ abstract contract BaseOpenfortAccount is
         // explicitly check for insufficient funds to prevent user paying fee for a
         // transaction that wouldn't be included on Ethereum.
         uint256 totalRequiredBalance = _transaction.totalRequiredBalance();
+
+        console.log("BEFORE enough balance");
+
         require(totalRequiredBalance <= address(this).balance, "Not enough balance for fee + value");
+
+        console.log("AFTER enough balance");
 
         if (_validateSignature(txHash, _transaction.signature, _transaction.data) == EIP1271_SUCCESS_RETURN_VALUE) {
             magic = ACCOUNT_VALIDATION_SUCCESS_MAGIC;
@@ -139,6 +147,7 @@ abstract contract BaseOpenfortAccount is
         internal
         returns (bytes4 magic)
     {
+        console.log("ENTERING SIGNATURE VALIDATION");
         magic = EIP1271_SUCCESS_RETURN_VALUE;
 
         if (_signature.length != 65) {
@@ -164,9 +173,18 @@ abstract contract BaseOpenfortAccount is
         // The v value in Ethereum signatures is usually 27 or 28.
         // However, some libraries may produce v values of 0 or 1.
         // This line ensures that v is correctly normalized to either 27 or 28.
+
+        console.log("v value of signature %s", v);
+        console.logBytes32(r);
+        console.logBytes32(s);
+
         if (v < 27) v += 27;
 
         address signerAddress = ecrecover(_hash, v, r, s);
+
+
+        console.log("RECOVERED SIGNER ADDRESS is %s", signerAddress);
+        console.log("OWNER IS %s", owner());
 
         // Note, that we should abstain from using the require here in order to allow for fee estimation to work
         if (signerAddress != owner() && signerAddress != address(0)) {
