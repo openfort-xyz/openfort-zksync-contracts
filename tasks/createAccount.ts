@@ -34,8 +34,7 @@ task("create-account", "Create and Initialize an Openfort Upgradeable Account")
     // for the entire end to tend test suite
     // on Sophon use paymaster
     if (chain.name != "Sophon" ) {
-        // no need to await here -- funds will be on the account on-time
-        walletClient.sendTransaction({
+        await walletClient.sendTransaction({
             account,
             to: accountProxy,
             value: parseEther("0.001"),
