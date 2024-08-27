@@ -1,6 +1,9 @@
 import { defineChain, WalletClient } from "viem"
 import { chainConfig, getGeneralPaymasterInput, zksyncInMemoryNode, zksyncSepoliaTestnet } from "viem/zksync"
 
+import { getPaymasterParams } from "zksync-ethers/build/paymaster-utils"
+import { DEFAULT_GAS_PER_PUBDATA_LIMIT } from "zksync-ethers/build/utils"
+
 export async function writeContract(c: WalletClient, contractParams) {    
     // add paymaster info for sophon
     if (hre.network.config.url.includes("sophon")) {
@@ -9,6 +12,26 @@ export async function writeContract(c: WalletClient, contractParams) {
       }
     return c.writeContract(contractParams)
 }
+
+
+// ETHERS 6 version
+export function buildTransactionRequest(params) {
+  if (hre.network.config.url.includes("sophon")) {
+    const paymasterParams = getPaymasterParams(process.env.SOPHON_TESTNET_PAYMASTER_ADDRESS!, {
+      type: "General",
+      innerInput: new Uint8Array(),
+    });
+    return {
+      ...params,
+      customData: {
+        paymasterParams,
+        gasPerPubdata: DEFAULT_GAS_PER_PUBDATA_LIMIT,
+      }
+    }
+  }
+  return params
+}
+
 
 export function getViemChainFromConfig() {
     const sophon = defineChain({

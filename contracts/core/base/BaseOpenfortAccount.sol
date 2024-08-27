@@ -136,28 +136,28 @@ abstract contract BaseOpenfortAccount is
 
         console.log("AFTER enough balance");
 
-        if (_validateSignature(txHash, _transaction.signature, _transaction.data) == EIP1271_SUCCESS_RETURN_VALUE) {
+        if (_validateSignature(txHash, _transaction.signature, _transaction.to) == EIP1271_SUCCESS_RETURN_VALUE) {
             magic = ACCOUNT_VALIDATION_SUCCESS_MAGIC;
         } else {
             magic = "";
         }
     }
 
-    function _validateSignature(bytes32 _hash, bytes memory _signature, bytes calldata transactionCallData)
+    function _validateSignature(bytes32 _hash, bytes memory _signature, uint256 _to)
         internal
         returns (bytes4 magic)
     {
         console.log("ENTERING SIGNATURE VALIDATION");
         magic = EIP1271_SUCCESS_RETURN_VALUE;
 
-        if (_signature.length != 65) {
-            // Signature is invalid anyway, but we need to proceed with the signature verification as usual
-            // in order for the fee estimation to work correctly
-            _signature = new bytes(65);
-            // Making sure that the signatures look like a valid ECDSA signature and are not rejected rightaway
-            // while skipping the main verification process.
-            _signature[64] = bytes1(uint8(27));
-        }
+        // if (_transaction.signature.length != 65) {
+        //     // Signature is invalid anyway, but we need to proceed with the signature verification as usual
+        //     // in order for the fee estimation to work correctly
+        //     _transaction.signature = new bytes(65);
+        //     // Making sure that the signatures look like a valid ECDSA signature and are not rejected rightaway
+        //     // while skipping the main verification process.
+        //     _transaction.signature[64] = bytes1(uint8(27));
+        // }
 
         // extract ECDSA signature
         uint8 v;
@@ -182,14 +182,13 @@ abstract contract BaseOpenfortAccount is
 
         address signerAddress = ecrecover(_hash, v, r, s);
 
-
         console.log("RECOVERED SIGNER ADDRESS is %s", signerAddress);
         console.log("OWNER IS %s", owner());
 
         // Note, that we should abstain from using the require here in order to allow for fee estimation to work
         if (signerAddress != owner() && signerAddress != address(0)) {
             // if not owner, try session key validation
-            if (!isValidSessionKey(signerAddress, transactionCallData)) {
+            if (!isValidSessionKey(signerAddress, _to)) {
                 magic = "";
             }
         }
@@ -198,52 +197,44 @@ abstract contract BaseOpenfortAccount is
     /*
      * @notice Return whether a sessionKey is valid.
      */
-    function isValidSessionKey(address _sessionKey, bytes calldata _callData) internal virtual returns (bool) {
+    function isValidSessionKey(address _sessionKey, uint256 _to) internal virtual returns (bool) {
         SessionKeyStruct storage sessionKey = sessionKeys[_sessionKey];
+
+        console.log("ENTERING SESSION_KEY VALIDATION");
+
         // If not owner and the session key is revoked, return false
-        if (sessionKey.validUntil == 0) return false;
+
+        if (sessionKey.validUntil == 0) {
+            console.log("SESSION_KEY doesn't exists");
+            return false;
+        }
 
         // If the sessionKey was not registered by the owner, return false
         // If the account is transferred or sold, isValidSessionKey() will return false with old session keys
+
+        console.log("SESSION_KEY REGISTRAR ADDRESS %s", sessionKey.registrarAddress);
         if (sessionKey.registrarAddress != owner()) return false;
 
         // TODO:
         // verify that sessionKey is active for the current `block.timestamp`
         // blocker: zkSync doesn't allow access to contextual variables in the AA signature validation
 
-        // If the signer is a session key that is still valid
-        // Let's first get the selector of the function that the caller is using
-        bytes4 funcSelector =
-            _callData[0] | (bytes4(_callData[1]) >> 8) | (bytes4(_callData[2]) >> 16) | (bytes4(_callData[3]) >> 24);
-
-        if (funcSelector == EXECUTE_SELECTOR) {
-            Transaction memory zkSyncTransaction;
-            (,, zkSyncTransaction) = abi.decode(_callData[4:], (bytes32, bytes32, Transaction));
-
-            address to = address(uint160(zkSyncTransaction.to));
-
-            // Check if reenter, do not allow
-            if (to == address(this)) return false;
-
-            // Check if it is a masterSessionKey
-            if (sessionKey.masterSessionKey) return true;
-
-            // Limit of transactions per sessionKey reached
-            if (sessionKey.limit == 0) return false;
-            // Deduct one use of the limit for the given session key
-            unchecked {
-                sessionKey.limit = sessionKey.limit - 1;
-            }
-
-            // If there is no whitelist or there is, but the target is whitelisted, return true
-            if (!sessionKey.whitelisting || sessionKey.whitelist[to]) {
-                return true;
-            }
-
-            return false; // All other cases, deny
+        address to = address(uint160(_to));
+        // Check if reenter, do not allow
+        if (to == address(this)) return false;
+        // Check if it is a masterSessionKey
+        if (sessionKey.masterSessionKey) return true;
+        // Limit of transactions per sessionKey reached
+        if (sessionKey.limit == 0) return false;
+        // Deduct one use of the limit for the given session key
+        unchecked {
+            sessionKey.limit = sessionKey.limit - 1;
         }
-
-        // If a session key is used for other functions other than executeTransaction(), deny
+        // If there is no whitelist or there is, but the target is whitelisted, return true
+        if (!sessionKey.whitelisting || sessionKey.whitelist[to]) {
+            return true;
+        }
+        // All other cases, deny
         return false;
     }
 
