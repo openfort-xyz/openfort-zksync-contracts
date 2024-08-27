@@ -7,6 +7,7 @@ import { generatePrivateKey } from "viem/accounts"
 import { createPublicClient, http } from "viem"
 
 import { Interface } from "ethers"
+import { ethers } from "ethers"
 import { privateKeyToAccount } from "viem/accounts"
 
 
@@ -36,7 +37,8 @@ const baseOpenfortAccountInterface = new Interface(baseOpenfortAccountAbi)
 
 const privateKey = hre.network.config.accounts[0]
 const provider = Provider.getDefaultProvider(types.Network.EraTestNode)
-const ownerAccount = new SmartAccount({ address: openfortAccountAddress, secret: privateKey }, provider)
+const ownerSigner = new ethers.Wallet(privateKey, provider);
+const ownerSmartAccount = new SmartAccount({ address: openfortAccountAddress, secret: privateKey }, provider)
 
 describe("ERC20 interactions from Openfort Account", function () {
 
@@ -66,27 +68,23 @@ describe("ERC20 interactions from Openfort Account", function () {
         const amount = BigInt(42)
         const sender = openfortAccountAddress
         const data = mockERC20Interface.encodeFunctionData("mint", [sender, amount])
-        // this works only if a smart account is alrady deployed at the address: 0x67b056e28ae03840E207C111164fDd9e89a933a6
-        // and exported as env var ACCOUNT_IMPLEMENTATION_ADDRESS=0x67b056e28ae03840E207C111164fDd9e89a933a6
-        // follow instruction in README to deploy your own and export the deployed address
 
-        
         const params = {
             type: utils.EIP712_TX_TYPE,
             to: tokens.mockERC20,
             data
         }
-        
+
         const txRequest = buildTransactionRequest(params)
         console.log(txRequest);
 
-        const populatedTx = await ownerAccount.populateTransaction(txRequest);
+        const populatedTx = await ownerSmartAccount.populateTransaction(txRequest);
 
-        const initialBalance = await ownerAccount.getBalance(tokens.mockERC20)
+        const initialBalance = await ownerSmartAccount.getBalance(tokens.mockERC20)
 
-        await ownerAccount.sendTransaction(populatedTx)
+        await ownerSmartAccount.sendTransaction(populatedTx)
 
-        const finalBalance = await ownerAccount.getBalance(tokens.mockERC20)
+        const finalBalance = await ownerSmartAccount.getBalance(tokens.mockERC20)
 
         console.log(`balance before mint: ${initialBalance}`)
         console.log(`balance after mint: ${finalBalance}`)
@@ -107,7 +105,9 @@ describe("ERC20 interactions from Openfort Account", function () {
 
         console.log(`session key address ${sessionKeyAddress}`)
 
-        // abi-encode contract call
+
+        // ============== SESSION KEY REGISTRATION ===========================================================
+
         const registerSessionKeyData = baseOpenfortAccountInterface.encodeFunctionData("registerSessionKey", [
             sessionKeyAddress,
             blockTimestamp,
@@ -116,26 +116,24 @@ describe("ERC20 interactions from Openfort Account", function () {
             [] // empty whitelist
         ])
 
-
         const params = {
-            type: utils.EIP712_TX_TYPE,
             to: openfortAccountAddress,
             data: registerSessionKeyData,
         }
+
         const txRequest = buildTransactionRequest(params)
-        const populatedRegisterSessionKeyTx = await ownerAccount.populateTransaction(txRequest)
-
-        const txReceipt = await ownerAccount.sendTransaction(populatedRegisterSessionKeyTx)
-
+        const populatedRegisterSessionKeyTx = await ownerSigner.populateTransaction(txRequest)
+        const txReceipt = await ownerSigner.sendTransaction(populatedRegisterSessionKeyTx)
         console.log(txReceipt)
 
-        const validSessionKeyAccount = new SmartAccount({ address: openfortAccountAddress, secret: sessionKey }, provider)
+        // ============== END SESSION KEY REGISTRATION ===========================================================
 
+        const validSessionKeyAccount = new SmartAccount({ address: openfortAccountAddress, secret: sessionKey }, provider)
         const amount = BigInt(42)
         const sender = openfortAccountAddress
         const mintData = mockERC20Interface.encodeFunctionData("mint", [sender, amount])
 
-        const populatedMintTx = await ownerAccount.populateTransaction(buildTransactionRequest({
+        const populatedMintTx = await ownerSmartAccount.populateTransaction(buildTransactionRequest({
             type: utils.EIP712_TX_TYPE,
             to: tokens.mockERC20,
             data: mintData
