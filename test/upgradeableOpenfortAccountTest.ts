@@ -11,34 +11,87 @@ import { ethers } from "ethers"
 import { privateKeyToAccount } from "viem/accounts"
 
 
+
+// ========================== TEST GLOBAL CONFIGURATION ======================================================
+
+
 const chain = getViemChainFromConfig()
 const openfortAccountAddress = hre.openfortAccountAddress
-
 const publicClient = createPublicClient({
     chain, // custom addition from prepareTest
     transport: http(),
-  })
-
+})
 
 const mockERC20Abi = [
-        "function mint(address, uint256)"
-    ]
-
+    "function mint(address, uint256)"
+]
 const mockERC20Interface = new Interface(mockERC20Abi)
-
 const baseOpenfortAccountAbi = [
     "function registerSessionKey(address, uint48, uint48, uint48, address[])"
 ]
-
 const baseOpenfortAccountInterface = new Interface(baseOpenfortAccountAbi)
-
-
-// GLOBAL test configuration
-
 const privateKey = hre.network.config.accounts[0]
 const provider = Provider.getDefaultProvider(types.Network.EraTestNode)
 const ownerSigner = new ethers.Wallet(privateKey, provider);
 const ownerSmartAccount = new SmartAccount({ address: openfortAccountAddress, secret: privateKey }, provider)
+
+
+
+// ========================== TEST HELPER ====================================================================
+
+const ONE_DAY = BigInt(24 * 60 * 60)
+
+interface sessionKey {
+    secret: `0x${string}`
+    address: `0x${string}`
+    isMaster: Boolean
+}
+
+
+async function registerRandomSessionKey(limit: bigint, duration: bigint, whitelist = []): Promise<sessionKey> {
+
+
+    const blockTimestamp = (await publicClient.getBlock()).timestamp
+    const secret = generatePrivateKey()
+    const address = privateKeyToAccount(secret).address
+
+    console.log(`session key address ${address}`)
+
+    const registerSessionKeyData = baseOpenfortAccountInterface.encodeFunctionData("registerSessionKey", [
+        address,
+        blockTimestamp,
+        blockTimestamp + duration,
+        limit,
+        whitelist
+    ])
+
+    const params = {
+        to: openfortAccountAddress,
+        data: registerSessionKeyData,
+    }
+
+    const txRequest = buildTransactionRequest(params)
+    const populatedRegisterSessionKeyTx = await ownerSigner.populateTransaction(txRequest)
+
+    const transactionResponse = await ownerSigner.sendTransaction(populatedRegisterSessionKeyTx)
+    expect(transactionResponse.hash)
+    return {
+        secret,
+        address,
+        // master sessionKey has no whitelisting AND unlimited time validity
+        isMaster: !whitelist && limit == BigInt(2**48 - 1)
+
+    }
+}
+
+async function registerRandomMasterSessionKey(duration: bigint): Promise<sessionKey> {
+    return registerRandomSessionKey(BigInt(2**48 - 1), duration)
+}
+
+
+// ================ START END TO END TESTS ===================================================================
+
+
 
 describe("ERC20 interactions from Openfort Account", function () {
 
@@ -76,59 +129,24 @@ describe("ERC20 interactions from Openfort Account", function () {
         }
 
         const txRequest = buildTransactionRequest(params)
-        console.log(txRequest);
 
         const populatedTx = await ownerSmartAccount.populateTransaction(txRequest);
 
         const initialBalance = await ownerSmartAccount.getBalance(tokens.mockERC20)
-
         await ownerSmartAccount.sendTransaction(populatedTx)
-
         const finalBalance = await ownerSmartAccount.getBalance(tokens.mockERC20)
 
         console.log(`balance before mint: ${initialBalance}`)
         console.log(`balance after mint: ${finalBalance}`)
-       
+
         expect(finalBalance - initialBalance).to.equal(amount);
     });
 
-    it("register a session key and sign with it: balance should be updated", async function() {
+    it("register a session key and sign with it: balance should be updated", async function () {
         await deployTokens()
 
-        const blockTimestamp = (await publicClient.getBlock()).timestamp
-
-        // generate a new private key
-        // to avoid Account contract reverts with "SessionKey already registered"
-
-        const sessionKey = generatePrivateKey()
-        const sessionKeyAddress = privateKeyToAccount(sessionKey).address
-
-        console.log(`session key address ${sessionKeyAddress}`)
-
-
-        // ============== SESSION KEY REGISTRATION ===========================================================
-
-        const registerSessionKeyData = baseOpenfortAccountInterface.encodeFunctionData("registerSessionKey", [
-            sessionKeyAddress,
-            blockTimestamp,
-            blockTimestamp + BigInt(24 * 60 * 60), // active for 24 hours
-            100, // limit
-            [] // empty whitelist
-        ])
-
-        const params = {
-            to: openfortAccountAddress,
-            data: registerSessionKeyData,
-        }
-
-        const txRequest = buildTransactionRequest(params)
-        const populatedRegisterSessionKeyTx = await ownerSigner.populateTransaction(txRequest)
-        const txReceipt = await ownerSigner.sendTransaction(populatedRegisterSessionKeyTx)
-        console.log(txReceipt)
-
-        // ============== END SESSION KEY REGISTRATION ===========================================================
-
-        const validSessionKeyAccount = new SmartAccount({ address: openfortAccountAddress, secret: sessionKey }, provider)
+        const sessionKey = await registerRandomSessionKey(BigInt(100), ONE_DAY)
+        const validSessionKeyAccount = new SmartAccount({ address: openfortAccountAddress, secret: sessionKey.secret }, provider)
         const amount = BigInt(42)
         const sender = openfortAccountAddress
         const mintData = mockERC20Interface.encodeFunctionData("mint", [sender, amount])

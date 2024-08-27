@@ -150,14 +150,14 @@ abstract contract BaseOpenfortAccount is
         console.log("ENTERING SIGNATURE VALIDATION");
         magic = EIP1271_SUCCESS_RETURN_VALUE;
 
-        // if (_transaction.signature.length != 65) {
-        //     // Signature is invalid anyway, but we need to proceed with the signature verification as usual
-        //     // in order for the fee estimation to work correctly
-        //     _transaction.signature = new bytes(65);
-        //     // Making sure that the signatures look like a valid ECDSA signature and are not rejected rightaway
-        //     // while skipping the main verification process.
-        //     _transaction.signature[64] = bytes1(uint8(27));
-        // }
+        if (_signature.length != 65) {
+            // Signature is invalid anyway, but we need to proceed with the signature verification as usual
+            // in order for the fee estimation to work correctly
+            _signature = new bytes(65);
+            // Making sure that the signatures look like a valid ECDSA signature and are not rejected rightaway
+            // while skipping the main verification process.
+            _signature[64] = bytes1(uint8(27));
+        }
 
         // extract ECDSA signature
         uint8 v;
