@@ -16,7 +16,7 @@ const config: HardhatUserConfig = {
   networks: {
     zkSyncLocal: {
       url: "http://127.0.0.1:8011",
-      ethNetwork: "mainnet",
+      ethNetwork: "sepolia",
       zksync: true,
       // constant accounts on era_test_node: https://github.com/matter-labs/era-test-node
       accounts: ["0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e"]

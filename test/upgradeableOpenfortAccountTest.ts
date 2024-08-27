@@ -62,7 +62,6 @@ describe("ERC20 interactions from Openfort Account", function () {
     it("sign with owner: balance should be updated", async function () {
         await deployTokens()
 
-
         // abi-encode contract call
         const amount = BigInt(42)
         const sender = openfortAccountAddress
@@ -92,7 +91,7 @@ describe("ERC20 interactions from Openfort Account", function () {
         console.log(`balance before mint: ${initialBalance}`)
         console.log(`balance after mint: ${finalBalance}`)
        
-        // expect(finalBalance - initialBalance).to.equal(amount);
+        expect(finalBalance - initialBalance).to.equal(amount);
     });
 
     it("register a session key and sign with it: balance should be updated", async function() {
@@ -143,7 +142,6 @@ describe("ERC20 interactions from Openfort Account", function () {
         }));
 
         await validSessionKeyAccount.sendTransaction(populatedMintTx)
-
     })
 
 })

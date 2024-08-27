@@ -37,14 +37,13 @@
 
 ### Test
 
-
 Run e2e tests on a freshly created account deployed from a fresh factory (long setup time)
 
 ```
 yarn hardhat test --network <zkSophonTestnet|zkTestnet|zkSyncLocal>  --nonce <number>
 ```
 
-Running tests with the `zkSyncLocal` network requires a running local zkSync node: [download](https://github.com/matter-labs/era-test-node) and run `era_test_node fork mainnet` on another terminal *before* running the tests.
+Running tests with the `zkSyncLocal` network requires a running local zkSync node: [download](https://github.com/matter-labs/era-test-node) and run `era_test_node fork https://sepolia.era.zksync.dev` on another terminal *before* running the tests.
 
 Run e2e tests directly, skip deployments
 
