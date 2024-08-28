@@ -1,4 +1,6 @@
-import { expect } from "chai"
+import chai, { expect } from "chai"
+import chaiAsPromised from "chai-as-promised"
+
 
 import { buildTransactionRequest, getViemChainFromConfig } from "../tasks/utils"
 import { SmartAccount, Provider, types, utils } from "zksync-ethers"
@@ -11,14 +13,13 @@ import { ethers } from "ethers"
 import { privateKeyToAccount } from "viem/accounts"
 
 
-
 // ========================== TEST GLOBAL CONFIGURATION ======================================================
 
-
+chai.use(chaiAsPromised);
 const chain = getViemChainFromConfig()
 const openfortAccountAddress = hre.openfortAccountAddress
 const publicClient = createPublicClient({
-    chain, // custom addition from prepareTest
+    chain,
     transport: http(),
 })
 
@@ -36,7 +37,6 @@ const ownerSigner = new ethers.Wallet(privateKey, provider);
 const ownerSmartAccount = new SmartAccount({ address: openfortAccountAddress, secret: privateKey }, provider)
 
 
-
 // ========================== TEST HELPER ====================================================================
 
 const ONE_DAY = BigInt(24 * 60 * 60)
@@ -49,8 +49,6 @@ interface sessionKey {
 
 
 async function registerRandomSessionKey(limit: bigint, duration: bigint, whitelist = []): Promise<sessionKey> {
-
-
     const blockTimestamp = (await publicClient.getBlock()).timestamp
     const secret = generatePrivateKey()
     const address = privateKeyToAccount(secret).address
@@ -72,14 +70,15 @@ async function registerRandomSessionKey(limit: bigint, duration: bigint, whiteli
 
     const txRequest = buildTransactionRequest(params)
     const populatedRegisterSessionKeyTx = await ownerSigner.populateTransaction(txRequest)
-
     const transactionResponse = await ownerSigner.sendTransaction(populatedRegisterSessionKeyTx)
-    expect(transactionResponse.hash)
+
+    expect(transactionResponse.hash, "Fail to register session key");
+
     return {
         secret,
         address,
         // master sessionKey has no whitelisting AND unlimited time validity
-        isMaster: !whitelist && limit == BigInt(2**48 - 1)
+        isMaster: !whitelist.length && limit == BigInt(2**48 - 1)
 
     }
 }
@@ -129,16 +128,11 @@ describe("ERC20 interactions from Openfort Account", function () {
         }
 
         const txRequest = buildTransactionRequest(params)
-
         const populatedTx = await ownerSmartAccount.populateTransaction(txRequest);
 
         const initialBalance = await ownerSmartAccount.getBalance(tokens.mockERC20)
         await ownerSmartAccount.sendTransaction(populatedTx)
         const finalBalance = await ownerSmartAccount.getBalance(tokens.mockERC20)
-
-        console.log(`balance before mint: ${initialBalance}`)
-        console.log(`balance after mint: ${finalBalance}`)
-
         expect(finalBalance - initialBalance).to.equal(amount);
     });
 
@@ -151,13 +145,48 @@ describe("ERC20 interactions from Openfort Account", function () {
         const sender = openfortAccountAddress
         const mintData = mockERC20Interface.encodeFunctionData("mint", [sender, amount])
 
-        const populatedMintTx = await ownerSmartAccount.populateTransaction(buildTransactionRequest({
+        const populatedMintTx = await validSessionKeyAccount.populateTransaction(buildTransactionRequest({
             type: utils.EIP712_TX_TYPE,
             to: tokens.mockERC20,
             data: mintData
         }));
 
+        const initialBalance = await ownerSmartAccount.getBalance(tokens.mockERC20)
         await validSessionKeyAccount.sendTransaction(populatedMintTx)
+        const finalBalance = await ownerSmartAccount.getBalance(tokens.mockERC20)
+        expect(finalBalance - initialBalance).to.equal(amount);
+
     })
 
+    it("sign with an invalid session key: transaction should revert", async function () {
+
+        if (chain.name != "ZKsync InMemory Node") {
+            console.log("<<TEST SKIPPED>> time-based tests can only run locally");
+            return;
+        }
+
+        await deployTokens()
+
+        // sessionKey is valid for 42 seconds ....
+        const sessionKey = await registerRandomMasterSessionKey(BigInt(42))
+        const validSessionKeyAccount = new SmartAccount({ address: openfortAccountAddress, secret: sessionKey.secret }, provider)
+
+        // invalidate the sessionKey
+        const blockTimestamp = (await publicClient.getBlock()).timestamp
+        await provider.send("evm_setNextBlockTimestamp", [Number(blockTimestamp) + 100000])
+
+        const amount = BigInt(42)
+        const sender = openfortAccountAddress
+        const mintData = mockERC20Interface.encodeFunctionData("mint", [sender, amount])
+        const populatedMintTx = await validSessionKeyAccount.populateTransaction(buildTransactionRequest({
+            type: utils.EIP712_TX_TYPE,
+            to: tokens.mockERC20,
+            data: mintData
+        }));
+        // signing the mint tx with the sessionKey SHOULD revert with SessionKeyOutOfRange
+        const SESSION_KEY_OUT_OF_TIME_RANGE = "0x994a382b"
+        expect(
+            validSessionKeyAccount.sendTransaction(populatedMintTx)
+          ).to.be.rejectedWith(SESSION_KEY_OUT_OF_TIME_RANGE);
+    })
 })

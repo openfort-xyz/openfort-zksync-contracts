@@ -37,7 +37,7 @@ task("create-account", "Create and Initialize an Openfort Upgradeable Account")
         await walletClient.sendTransaction({
             account,
             to: accountProxy,
-            value: parseEther("0.001"),
+            value: parseEther("100"),
         })
     }
     return accountProxy

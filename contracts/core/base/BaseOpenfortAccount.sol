@@ -29,8 +29,6 @@ import {OpenfortErrors} from "../../interfaces/OpenfortErrors.sol";
 import {OpenfortEvents} from "../../interfaces/OpenfortEvents.sol";
 
 
-import {console} from "hardhat/console.sol";
-
 /**
  * @title BaseOpenfortAccount (Non upgradeable by default)
  * @notice Smart contract wallet following the ZKsync AA standard with session keys support.
@@ -112,7 +110,6 @@ abstract contract BaseOpenfortAccount is
         internal
         returns (bytes4 magic)
     {
-        console.log("ENTERING TRANSACTION VALIDATION: from %s and to %s", address(uint160(_transaction.from)), address(uint160(_transaction.to)));
         // Incrementing the nonce of the account.
         SystemContractsCaller.systemCallWithPropagatedRevert(
             uint32(gasleft()),
@@ -130,11 +127,7 @@ abstract contract BaseOpenfortAccount is
         // transaction that wouldn't be included on Ethereum.
         uint256 totalRequiredBalance = _transaction.totalRequiredBalance();
 
-        console.log("BEFORE enough balance");
-
         require(totalRequiredBalance <= address(this).balance, "Not enough balance for fee + value");
-
-        console.log("AFTER enough balance");
 
         if (_validateSignature(txHash, _transaction.signature, _transaction.to) == EIP1271_SUCCESS_RETURN_VALUE) {
             magic = ACCOUNT_VALIDATION_SUCCESS_MAGIC;
@@ -147,9 +140,19 @@ abstract contract BaseOpenfortAccount is
         internal
         returns (bytes4 magic)
     {
-        console.log("ENTERING SIGNATURE VALIDATION");
         magic = EIP1271_SUCCESS_RETURN_VALUE;
+        address signerAddress = _recoverECDSAsignature(_hash, _signature);
+        // Note, that we should abstain from using the require here in order to allow for fee estimation to work
+        if (signerAddress != owner() && signerAddress != address(0)) {
+            // if not owner, try session key validation
+            if (!isValidSessionKey(signerAddress, _to)) {
+                magic = "";
+            }
+        }
+    }
 
+
+    function _recoverECDSAsignature(bytes32 _hash, bytes memory _signature) internal pure returns (address signerAddress) {
         if (_signature.length != 65) {
             // Signature is invalid anyway, but we need to proceed with the signature verification as usual
             // in order for the fee estimation to work correctly
@@ -158,7 +161,6 @@ abstract contract BaseOpenfortAccount is
             // while skipping the main verification process.
             _signature[64] = bytes1(uint8(27));
         }
-
         // extract ECDSA signature
         uint8 v;
         bytes32 r;
@@ -169,29 +171,11 @@ abstract contract BaseOpenfortAccount is
             s := mload(add(_signature, 0x40))
             v := and(mload(add(_signature, 0x41)), 0xff)
         }
-
         // The v value in Ethereum signatures is usually 27 or 28.
         // However, some libraries may produce v values of 0 or 1.
         // This line ensures that v is correctly normalized to either 27 or 28.
-
-        console.log("v value of signature %s", v);
-        console.logBytes32(r);
-        console.logBytes32(s);
-
         if (v < 27) v += 27;
-
-        address signerAddress = ecrecover(_hash, v, r, s);
-
-        console.log("RECOVERED SIGNER ADDRESS is %s", signerAddress);
-        console.log("OWNER IS %s", owner());
-
-        // Note, that we should abstain from using the require here in order to allow for fee estimation to work
-        if (signerAddress != owner() && signerAddress != address(0)) {
-            // if not owner, try session key validation
-            if (!isValidSessionKey(signerAddress, _to)) {
-                magic = "";
-            }
-        }
+        signerAddress = ecrecover(_hash, v, r, s);
     }
 
     /*
@@ -199,25 +183,11 @@ abstract contract BaseOpenfortAccount is
      */
     function isValidSessionKey(address _sessionKey, uint256 _to) internal virtual returns (bool) {
         SessionKeyStruct storage sessionKey = sessionKeys[_sessionKey];
-
-        console.log("ENTERING SESSION_KEY VALIDATION");
-
         // If not owner and the session key is revoked, return false
-
-        if (sessionKey.validUntil == 0) {
-            console.log("SESSION_KEY doesn't exists");
-            return false;
-        }
-
+        if (sessionKey.validUntil == 0) return false;
         // If the sessionKey was not registered by the owner, return false
-        // If the account is transferred or sold, isValidSessionKey() will return false with old session keys
-
-        console.log("SESSION_KEY REGISTRAR ADDRESS %s", sessionKey.registrarAddress);
+        // If the account is transferred or sold, isValidSessionKey() will return false with old session keys;
         if (sessionKey.registrarAddress != owner()) return false;
-
-        // TODO:
-        // verify that sessionKey is active for the current `block.timestamp`
-        // blocker: zkSync doesn't allow access to contextual variables in the AA signature validation
 
         address to = address(uint160(_to));
         // Check if reenter, do not allow
@@ -270,12 +240,28 @@ abstract contract BaseOpenfortAccount is
     /**
      * @inheritdoc IAccount
      */
-    function executeTransaction(bytes32, bytes32, Transaction calldata _transaction)
+    function executeTransaction(bytes32, bytes32 _suggestedSignedHash, Transaction calldata _transaction)
         external
         payable
         override
         onlyBootloader
     {
+        // ! WARNING ! SESSION KEY VALIDATION
+        // THIS CODE DOES NOT BELONG IN THE EXECUTION LOGIC
+        // SIGNATURE HAS ALREADY BEEN RECOVERED IN THE VALIDATION FLOW
+
+        // TODO: MOVE IT TO THE VALIDATION LOGIC WHEN CONTEXTUAL VARIABLES ARE AVAILABLE
+
+        bytes32 txHash = _suggestedSignedHash == bytes32(0) ? _transaction.encodeHash() : _suggestedSignedHash;
+        address signer = _recoverECDSAsignature(txHash, _transaction.signature);
+
+        if (signer != owner() && signer != address(0)) {
+            SessionKeyStruct storage sk = sessionKeys[signer];
+            if (block.timestamp < sk.validAfter || block.timestamp > sk.validUntil) {
+                revert SessionKeyOutOfTimeRange();
+            }
+        }
+
         _executeTransaction(_transaction);
     }
 
