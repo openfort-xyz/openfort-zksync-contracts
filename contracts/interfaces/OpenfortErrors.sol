@@ -14,6 +14,11 @@ interface OpenfortErrors {
     /// @notice Error when an address is not a contract.
     error NotAContract();
 
+
+    /// @notice Error when session key is out of time range
+
+    error SessionKeyOutOfTimeRange();
+
     error ZeroAddressNotAllowed();
     error NotOwnerOrEntrypoint();
     error NotOwner();
