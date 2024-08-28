@@ -246,22 +246,6 @@ abstract contract BaseOpenfortAccount is
         override
         onlyBootloader
     {
-        // ! WARNING ! SESSION KEY VALIDATION
-        // THIS CODE DOES NOT BELONG IN THE EXECUTION LOGIC
-        // SIGNATURE HAS ALREADY BEEN RECOVERED IN THE VALIDATION FLOW
-
-        // TODO: MOVE IT TO THE VALIDATION LOGIC WHEN CONTEXTUAL VARIABLES ARE AVAILABLE
-
-        bytes32 txHash = _suggestedSignedHash == bytes32(0) ? _transaction.encodeHash() : _suggestedSignedHash;
-        address signer = _recoverECDSAsignature(txHash, _transaction.signature);
-
-        if (signer != owner() && signer != address(0)) {
-            SessionKeyStruct storage sk = sessionKeys[signer];
-            if (block.timestamp < sk.validAfter || block.timestamp > sk.validUntil) {
-                revert SessionKeyOutOfTimeRange();
-            }
-        }
-
         _executeTransaction(_transaction);
     }
 
@@ -273,6 +257,20 @@ abstract contract BaseOpenfortAccount is
     function _executeTransaction(Transaction calldata _transaction) internal {
         address to = address(uint160(_transaction.to));
         require(to != address(DEPLOYER_SYSTEM_CONTRACT), "Deployment from smart account not supported");
+        // ! WARNING ! SESSION KEY VALIDATION
+        // THIS CODE DOES NOT BELONG IN THE EXECUTION LOGIC
+        // SIGNATURE HAS ALREADY BEEN RECOVERED IN THE VALIDATION FLOW
+
+        // TODO: MOVE IT TO THE VALIDATION LOGIC WHEN CONTEXTUAL VARIABLES ARE AVAILABLE
+        bytes32 txHash =  _transaction.encodeHash();
+        address signer = _recoverECDSAsignature(txHash, _transaction.signature);
+
+        if (signer != owner() && signer != address(0)) {
+            SessionKeyStruct storage sk = sessionKeys[signer];
+            if (block.timestamp < sk.validAfter || block.timestamp > sk.validUntil) {
+                revert SessionKeyOutOfTimeRange();
+            }
+        }
         _call(to, _transaction.value, _transaction.data);
     }
 
