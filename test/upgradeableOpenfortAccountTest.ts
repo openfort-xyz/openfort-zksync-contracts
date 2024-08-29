@@ -4,7 +4,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { eip712WalletActions, toSinglesigSmartAccount } from "viem/zksync"
 import { createWalletClient, createPublicClient, http } from "viem"
 
-import { getViemChainFromConfig, writeContract } from "../tasks/utils"
+import { getViemChainFromConfig, writeContract, sleep } from "../tasks/utils"
 
 
 // Global test config
@@ -98,7 +98,6 @@ describe("ERC20 interactions from Openfort Account", function () {
             address: openfortAccountAddress,
             privateKey: sessionKey
           })
-
         // register a new random sessionKey
         await writeContract(walletClient, {
             account: owner,
