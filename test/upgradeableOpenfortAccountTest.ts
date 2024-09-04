@@ -1,10 +1,10 @@
 import { expect } from "chai"
-import { parseAbi } from "viem"
+import { Hex, parseAbi } from "viem"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { eip712WalletActions, toSinglesigSmartAccount } from "viem/zksync"
-import { createWalletClient, createPublicClient, http } from "viem"
-
-import { getViemChainFromConfig, writeContract, sleep } from "../tasks/utils"
+import { createWalletClient, createPublicClient, hashTypedData, http } from "viem"
+import { getViemChainFromConfig, writeContract } from "../tasks/utils"
+import { getGeneralPaymasterInput, serializeTransaction } from "viem/zksync"
 
 
 // Global test config
@@ -13,21 +13,23 @@ const chain = getViemChainFromConfig()
 const openfortAccountAddress = hre.openfortAccountAddress
 
 const publicClient = createPublicClient({
-    chain, // custom addition from prepareTest
+    chain,
     transport: http(),
   })
-
-const walletClient = createWalletClient({
-    chain,
-    transport: http(hre.network.config.url),
-  }).extend(eip712WalletActions())
 
 
 // configure viem smart account
 const accountWithOwner = toSinglesigSmartAccount({
-    address: openfortAccountAddress, // custom addition from prepareTest
+    address: openfortAccountAddress,
     privateKey: hre.network.config.accounts[0],
   })
+
+const walletClient = createWalletClient({
+    account: accountWithOwner,
+    chain,
+    transport: http(hre.network.config.url),
+  }).extend(eip712WalletActions())
+
 
 
 describe("ERC20 interactions from Openfort Account", function () {
@@ -40,7 +42,7 @@ describe("ERC20 interactions from Openfort Account", function () {
     };
 
     async function deployTokens() {
-        // use alreayd whitelisted mocks on Sophon
+        // use already whitelisted mocks on Sophon
         // deploy token contracts only once for all tests on other chains
         if (chain.name != "Sophon" && tokens.mockERC20 == MOCK_ERC20_ON_SOPHON) {
             const artifact = await hre.deployer.loadArtifact("MockERC20");
@@ -50,8 +52,58 @@ describe("ERC20 interactions from Openfort Account", function () {
         }
     }
 
+    it("self-custody account flow: sign raw transaction", async function () {
+        const paymaster = {
+            paymaster: process.env.SOPHON_TESTNET_PAYMASTER_ADDRESS as `0x${string}`,
+            paymasterInput: getGeneralPaymasterInput({ innerInput: new Uint8Array() }),
+        };
+
+        const transactionRequest = await walletClient.prepareTransactionRequest({
+            account: accountWithOwner,
+            from: accountWithOwner.address,
+            chainId: chain.id,
+            // MOCK ERC20 sophon contract
+            to: "0x0a433954E786712354c5917D0870895c29EF7AE4",
+            // function mint(address sender = 0x9590Ed0C18190a310f4e93CAccc4CC17270bED40, unit256 amount = 42)
+            data: "0x40c10f190000000000000000000000009590ed0c18190a310f4e93caccc4cc17270bed40000000000000000000000000000000000000000000000000000000000000002a",
+            ...paymaster,
+        });
+
+        const signableTransaction = {
+            from: accountWithOwner.address,
+            chainId: chain.id,
+            // preparedTransactionRequest
+            nonce: transactionRequest.nonce,
+            gas: transactionRequest.gas,
+            maxFeePerGas: transactionRequest.maxFeePerGas,
+            maxPriorityFeePerGas: transactionRequest.maxPriorityFeePerGas,
+
+            to: "0x0a433954E786712354c5917D0870895c29EF7AE4" as Hex,
+            data: "0x40c10f190000000000000000000000009590ed0c18190a310f4e93caccc4cc17270bed40000000000000000000000000000000000000000000000000000000000000002a" as Hex,
+            ...paymaster,
+        };
+
+        // OPENFORT FLOW:
+        // for self-custody accounts: Openfort needs to return a serialized signable hash from a transaction intent
+        // User would sign it then call the `signature` endpoint to broadcast through `sendRawTranscatoin`
+
+        const EIP712hash = hashTypedData(chain.custom.getEip712Domain(signableTransaction))
+        const signature = await accountWithOwner.sign({hash: EIP712hash})
+
+        const signedTransaction = serializeTransaction({
+            ...signableTransaction,
+            customSignature: signature,
+        });
+        const hash = await publicClient.sendRawTransaction({
+            serializedTransaction: signedTransaction,
+        })
+        console.log(`Send Raw Transaction Hash : ${hash}`)
+    });
+
+
     it("sign with owner: balance should be updated", async function () {
         await deployTokens()
+
         const initialBalance = await publicClient.readContract({
             account: accountWithOwner,
             address: tokens.mockERC20,
@@ -98,6 +150,7 @@ describe("ERC20 interactions from Openfort Account", function () {
             address: openfortAccountAddress,
             privateKey: sessionKey
           })
+
         // register a new random sessionKey
         await writeContract(walletClient, {
             account: owner,
@@ -110,7 +163,6 @@ describe("ERC20 interactions from Openfort Account", function () {
 
         // sign with the new sessionKey
         const amount = BigInt(42)
-        console.log(tokens.mockERC20!)
 
         const hash = await writeContract(walletClient,{
             account: accountWithSessionKey,
@@ -119,6 +171,6 @@ describe("ERC20 interactions from Openfort Account", function () {
             functionName: "mint",
             args: [openfortAccountAddress, amount],
         })
-        console.log(hash)
+        console.log(`Sign With Session Key Tansaction Hash ${hash}`)
     })
 })

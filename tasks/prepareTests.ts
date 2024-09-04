@@ -2,11 +2,11 @@ import { task } from "hardhat/config"
 import { getViemChainFromConfig, sleep } from "./utils"
 
 task("test")
-  .addFlag("skipDeployments", "Requires ACCOUNT_IMPLEMENTATION_ADDRESS env var")
+  .addFlag("skipDeployments", "Requires ACCOUNT_ADDRESS env var")
   .addOptionalParam("nonce", "Number to generate predictive account address with CREATE2")
   .setAction(async (args, hre, runSuper) => {
 
-    let address = process.env.ACCOUNT_IMPLEMENTATION_ADDRESS
+    let address = process.env.ACCOUNT_ADDRESS
     const chain = getViemChainFromConfig()
 
     if (!args.skipDeployments) {

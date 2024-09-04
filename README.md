@@ -49,7 +49,7 @@ Running tests with the `zkSyncLocal` network requires a running local zkSync nod
 Run e2e tests directly, skip deployments
 
 ```
-export ACCOUNT_IMPLEMENTATION_ADDRESS=<DEPLOYED_AND_INITIALIZED_ACCOUNT>
+export ACCOUNT_ADDRESS=<DEPLOYED_AND_INITIALIZED_ACCOUNT>
 yarn hardhat test --network <zkSophonTestnet|zkTestnet|zkSyncLocal> --skip-deployments
 ```
 

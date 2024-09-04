@@ -38,7 +38,6 @@ interface IBaseOpenfortAccount is IAccount {
         );
     function executeTransaction(bytes32, bytes32, Transaction calldata) external payable;
     function getDeposit() external view returns (uint256);
-    function getNonce() external view returns (uint256);
     function isValidSessionKey(address _sessionKey, bytes memory _callData) external returns (bool);
     function isValidSignature(bytes32 _hash, bytes memory _signature) external view returns (bytes4);
     function onERC1155BatchReceived(address, address, uint256[] memory, uint256[] memory, bytes memory)

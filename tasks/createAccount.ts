@@ -1,7 +1,18 @@
-import { createWalletClient, http, parseAbi, numberToHex, keccak256, encodeAbiParameters, parseAbiParameters, parseEther } from "viem"
+import { createWalletClient,
+  http,
+  parseAbi,
+  numberToHex,
+  keccak256,
+  encodeAbiParameters,
+  parseAbiParameters,
+  parseEther,
+  getAddress,
+  slice,
+  pad,
+  concat
+} from "viem"
 import { eip712WalletActions } from "viem/zksync"
 import { privateKeyToAccount } from "viem/accounts"
-import { utils } from "zksync-ethers"
 import { task } from "hardhat/config"
 import { getViemChainFromConfig, writeContract } from "./utils"
 
@@ -50,19 +61,29 @@ task("get-account", "Compute zkSync create2 address of an account")
   .addParam("nonce", "Number to generate predictive address with CREATE2")
   .setAction(async (args, hre) => {
     const account = privateKeyToAccount(hre.network.config.accounts[0])
-    const proxyArtifactName = "UpgradeableOpenfortProxy";
-    const proxyArtifact = await hre.deployer.loadArtifact(proxyArtifactName);
+    // const proxyArtifactName = "UpgradeableOpenfortProxy";
+    // const proxyArtifact = await hre.deployer.loadArtifact(proxyArtifactName);
     const abiTypes = parseAbiParameters("address, bytes32");
     const nonce = numberToHex(args.nonce, {size: 32})
-    const encodedData = encodeAbiParameters(abiTypes, [account.address, nonce])
-    const salt = keccak256(encodedData, "bytes")
     // https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#address-derivation
-    const accountProxy = utils.create2Address(
+    const accountProxy = create2Address(
       args.factory,
-      utils.hashBytecode(proxyArtifact.bytecode),
-      salt,
+      "0x010000a54c9de7cae403cb015684edcf24a518b73a06ef7ac6ea5da27134f3e0", //hashBytecode(proxyArtifact.bytecode) from viem/zksync/utils
+      keccak256(encodeAbiParameters(abiTypes, [account.address, nonce])),
       encodeAbiParameters(parseAbiParameters("address, bytes"), [args.implementation, "0x"])
     )
-    console.log(`Account address: ${accountProxy}`);
+    console.log(`Account Address: ${accountProxy}`);
     return accountProxy;
+
+
 });
+
+
+
+function create2Address(sender, bytecodeHash, salt, input) {
+  const prefix = "0x2020dba91b30cc0006188af794c2fb30dd8520db7e2c088b7fc7c103c00ca494";
+  const inputHash = keccak256(input);
+  const concatenatedData = concat([prefix, pad(sender, { size: 32 }), salt, bytecodeHash, inputHash]);
+  const addressBytes = slice(keccak256(concatenatedData), 12);
+  return getAddress(addressBytes);
+}
