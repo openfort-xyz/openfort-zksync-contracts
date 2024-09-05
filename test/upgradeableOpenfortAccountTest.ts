@@ -53,34 +53,40 @@ describe("ERC20 interactions from Openfort Account", function () {
     }
 
     it("self-custody account flow: sign raw transaction", async function () {
+
+        await deployTokens()
+
         const paymaster = {
             paymaster: process.env.SOPHON_TESTNET_PAYMASTER_ADDRESS as `0x${string}`,
             paymasterInput: getGeneralPaymasterInput({ innerInput: new Uint8Array() }),
         };
 
         const transactionRequest = await walletClient.prepareTransactionRequest({
+            type: "eip712",
             account: accountWithOwner,
             from: accountWithOwner.address,
             chainId: chain.id,
             // MOCK ERC20 sophon contract
-            to: "0x0a433954E786712354c5917D0870895c29EF7AE4",
+            to: tokens.mockERC20,
             // function mint(address sender = 0x9590Ed0C18190a310f4e93CAccc4CC17270bED40, unit256 amount = 42)
             data: "0x40c10f190000000000000000000000009590ed0c18190a310f4e93caccc4cc17270bed40000000000000000000000000000000000000000000000000000000000000002a",
-            ...paymaster,
-        });
+            ...(chain.name === "Sophon" ? paymaster : {}),
+        })
 
         const signableTransaction = {
+            type: "eip712",
             from: accountWithOwner.address,
             chainId: chain.id,
             // preparedTransactionRequest
+
             nonce: transactionRequest.nonce,
             gas: transactionRequest.gas,
             maxFeePerGas: transactionRequest.maxFeePerGas,
             maxPriorityFeePerGas: transactionRequest.maxPriorityFeePerGas,
 
-            to: "0x0a433954E786712354c5917D0870895c29EF7AE4" as Hex,
-            data: "0x40c10f190000000000000000000000009590ed0c18190a310f4e93caccc4cc17270bed40000000000000000000000000000000000000000000000000000000000000002a" as Hex,
-            ...paymaster,
+            to: tokens.mockERC20,
+            data: "0x40c10f190000000000000000000000009590ed0c18190a310f4e93caccc4cc17270bed40000000000000000000000000000000000000000000000000000000000000002a",
+            ...(chain.name === "Sophon" ? paymaster : {}),
         };
 
         // OPENFORT FLOW:
@@ -94,9 +100,11 @@ describe("ERC20 interactions from Openfort Account", function () {
             ...signableTransaction,
             customSignature: signature,
         });
+
         const hash = await publicClient.sendRawTransaction({
             serializedTransaction: signedTransaction,
         })
+
         console.log(`Send Raw Transaction Hash : ${hash}`)
     });
 
@@ -116,7 +124,7 @@ describe("ERC20 interactions from Openfort Account", function () {
         // Mint tokens
         await writeContract(walletClient, {
             account: accountWithOwner,
-            address: tokens.mockERC20!,
+            address: tokens.mockERC20,
             abi: parseAbi(["function mint(address sender, uint256 amount) external"]),
             functionName: "mint",
             args: [openfortAccountAddress, amount]
