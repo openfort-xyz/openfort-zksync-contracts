@@ -1,11 +1,11 @@
 import { expect } from "chai"
-import { Hex, parseAbi } from "viem"
+import { parseAbi } from "viem"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { eip712WalletActions, toSinglesigSmartAccount } from "viem/zksync"
 import { createWalletClient, createPublicClient, hashTypedData, http } from "viem"
 import { getViemChainFromConfig, writeContract } from "../tasks/utils"
 import { getGeneralPaymasterInput, serializeTransaction } from "viem/zksync"
-
+import hre from "hardhat";
 
 // Global test config
 const owner = privateKeyToAccount(hre.network.config.accounts[0])

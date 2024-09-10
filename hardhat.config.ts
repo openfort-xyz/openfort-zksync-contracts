@@ -6,6 +6,7 @@ import "./tasks/createAccount.ts"
 import "./tasks/deployAccount.ts"
 import "./tasks/deployFactory.ts"
 import "./tasks/deployMocks.ts"
+import "./tasks/deployPaymaster.ts"
 import "./tasks/prepareTests.ts"
 
 // Load env file
