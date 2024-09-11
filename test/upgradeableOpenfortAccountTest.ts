@@ -90,8 +90,8 @@ describe("ERC20 interactions from Openfort Account", function () {
         };
 
         // OPENFORT FLOW:
-        // for self-custody accounts: Openfort needs to return a serialized signable hash from a transaction intent
-        // User would sign it then call the `signature` endpoint to broadcast through `sendRawTranscatoin`
+        // for self-custody accounts: Openfort returns a serialized signable hash from a transaction intent
+        // User must sign it then call the `signature` endpoint to broadcast through `sendRawTranscatoin`
 
         const EIP712hash = hashTypedData(chain.custom.getEip712Domain(signableTransaction))
         const signature = await accountWithOwner.sign({hash: EIP712hash})
@@ -151,7 +151,7 @@ describe("ERC20 interactions from Openfort Account", function () {
         // to avoid Account contract reverts with "SessionKey already registered"
 
         const sessionKey = generatePrivateKey()
-        const sessionKeyAddress = privateKeyToAccount(sessionKey).address
+        const sessionKeyAccount = privateKeyToAccount(sessionKey)
 
         // setup openfort smart account with session key as signer
         const accountWithSessionKey = toSinglesigSmartAccount({
@@ -166,13 +166,21 @@ describe("ERC20 interactions from Openfort Account", function () {
             abi: parseAbi(["function registerSessionKey(address, uint48, uint48, uint48, address[]) external"]),
             functionName: "registerSessionKey",
             // Session Key is valid for 24 hours
-            args: [sessionKeyAddress, blockTimestamp, blockTimestamp + BigInt(24 * 60 * 60), 100, []],
+            args: [sessionKeyAccount.address, blockTimestamp, blockTimestamp + BigInt(24 * 60 * 60), 100, []],
         })
 
         // sign with the new sessionKey
         const amount = BigInt(42)
 
-        const hash = await writeContract(walletClient,{
+
+        // Make sure we sign with the session key
+        const sessionKeyWalletClient = createWalletClient({
+            account: sessionKeyAccount,
+            chain,
+            transport: http(hre.network.config.url),
+          }).extend(eip712WalletActions())
+
+        const hash = await writeContract(sessionKeyWalletClient, {
             account: accountWithSessionKey,
             address: tokens.mockERC20,
             abi: parseAbi(["function mint(address sender, uint256 amount) external"]),
