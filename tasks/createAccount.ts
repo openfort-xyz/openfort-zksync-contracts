@@ -74,8 +74,6 @@ task("get-account", "Compute zkSync create2 address of an account")
     )
     console.log(`Account Address: ${accountProxy}`);
     return accountProxy;
-
-
 });
 
 

@@ -31,7 +31,6 @@ const walletClient = createWalletClient({
   }).extend(eip712WalletActions())
 
 
-
 describe("ERC20 interactions from Openfort Account", function () {
     const MOCK_ERC20_ON_SOPHON = "0x0a433954E786712354c5917D0870895c29EF7AE4";
     interface Tokens {

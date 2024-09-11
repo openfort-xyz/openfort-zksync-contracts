@@ -1,9 +1,11 @@
 import { utils, Wallet } from "zksync-ethers";
 import { task } from "hardhat/config"
+import { randomBytes } from "ethers";
 
 task("deploy-factory", "Deploy an Openfort Factory")
     .addFlag("verify", "Verify the contract code on explorer")
     .addOptionalParam("account", "The account implementation address")
+    .addOptionalParam("salt", "Salt for create2 deployment", "0x0000000000000000000000000000000000000000000000000000000000000042")
     .setAction(async (args, hre) => {
         const contractArtifactName = "UpgradeableOpenfortFactory";
         const proxyArtifactName = "UpgradeableOpenfortProxy";
@@ -33,12 +35,16 @@ task("deploy-factory", "Deploy an Openfort Factory")
             wallet.address,
         ]
 
+        const randomSalt = randomBytes(32);
+        const salt = args.salt ?? randomSalt;
+
         const contract = await hre.deployer.deploy(factoryArtifact,
             constructorArguments,
-            "create",
+            "create2",
             {
-                // fill paymaster params for sophon, leave empty otherwise
-                customData: !hre.network.config.url.includes("sophon") ? {} : {
+                // fill paymaster params for sophon, leave empty .
+                customData: !hre.network.config.url.includes("sophon") ? {salt} : {
+                    salt,
                     paymasterParams: utils.getPaymasterParams(
                         process.env.SOPHON_TESTNET_PAYMASTER_ADDRESS!,
                         {
