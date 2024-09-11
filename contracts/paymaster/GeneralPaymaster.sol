@@ -7,7 +7,6 @@ import {TransactionHelper, Transaction} from "@matterlabs/zksync-contracts/l2/sy
 import {BOOTLOADER_FORMAL_ADDRESS} from "@matterlabs/zksync-contracts/l2/system-contracts/Constants.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-
 contract GeneralPaymaster is IPaymaster {
     using ECDSA for bytes32;
     address public owner;
@@ -41,13 +40,7 @@ contract GeneralPaymaster is IPaymaster {
         bytes32,
         bytes32,
         Transaction calldata _transaction
-    )
-        external
-        payable
-        override
-        onlyBootloader
-        returns (bytes4 magic, bytes memory context)
-    {
+    ) external payable override returns (bytes4 magic, bytes memory context) {
         magic = PAYMASTER_VALIDATION_SUCCESS_MAGIC;
         require(_transaction.paymasterInput.length >= 4, "InvalidInputLength");
         // TODO: support approval flow with ERC20 sponsoring
@@ -55,16 +48,18 @@ contract GeneralPaymaster is IPaymaster {
         bytes4 paymasterInputSelector = bytes4(
             _transaction.paymasterInput[0:4]
         );
+
         if (paymasterInputSelector != IPaymasterFlow.general.selector)
             revert("Unsupported paymaster flow");
 
+        // Decoding innerInput data to bytes
         bytes memory signature = abi.decode(
             _transaction.paymasterInput[4:],
             (bytes)
         );
 
         if (
-            isValidSignature(
+           !isValidSignature(
                 signature,
                 address(uint160(_transaction.from)),
                 address(uint160(_transaction.to)),
@@ -99,10 +94,7 @@ contract GeneralPaymaster is IPaymaster {
         bytes32,
         ExecutionResult /*_txResult*/,
         uint256 /*_maxRefundedGas*/
-    ) external payable override {
-        address userAddress = address(uint160(_transaction.from));
-        userAddress.call{value: address(this).balance}("");
-    }
+    ) external payable override {}
 
     function isValidSignature(
         bytes memory _signature,
@@ -113,7 +105,6 @@ contract GeneralPaymaster is IPaymaster {
         uint256 _maxFeePerGas,
         uint256 _gasLimit
     ) public view returns (bool) {
-
         bytes32 messageHash = keccak256(
             abi.encodePacked(
                 _from,
