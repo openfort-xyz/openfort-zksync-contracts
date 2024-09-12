@@ -1,5 +1,5 @@
 import { expect } from "chai"
-import { parseAbi } from "viem"
+import { encodeFunctionData, encodePacked, parseAbi } from "viem"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { eip712WalletActions, toSinglesigSmartAccount } from "viem/zksync"
 import { createWalletClient, createPublicClient, hashTypedData, http } from "viem"
@@ -15,20 +15,20 @@ const openfortAccountAddress = hre.openfortAccountAddress
 const publicClient = createPublicClient({
     chain,
     transport: http(),
-  })
+})
 
 
 // configure viem smart account
 const accountWithOwner = toSinglesigSmartAccount({
     address: openfortAccountAddress,
     privateKey: hre.network.config.accounts[0],
-  })
+})
 
 const walletClient = createWalletClient({
     account: accountWithOwner,
     chain,
     transport: http(hre.network.config.url),
-  }).extend(eip712WalletActions())
+}).extend(eip712WalletActions())
 
 
 describe("ERC20 interactions from Openfort Account", function () {
@@ -93,7 +93,7 @@ describe("ERC20 interactions from Openfort Account", function () {
         // User must sign it then call the `signature` endpoint to broadcast through `sendRawTranscatoin`
 
         const EIP712hash = hashTypedData(chain.custom.getEip712Domain(signableTransaction))
-        const signature = await accountWithOwner.sign({hash: EIP712hash})
+        const signature = await accountWithOwner.sign({ hash: EIP712hash })
 
         const signedTransaction = serializeTransaction({
             ...signableTransaction,
@@ -156,7 +156,7 @@ describe("ERC20 interactions from Openfort Account", function () {
         const accountWithSessionKey = toSinglesigSmartAccount({
             address: openfortAccountAddress,
             privateKey: sessionKey
-          })
+        })
 
         // register a new random sessionKey
         await writeContract(walletClient, {
@@ -177,7 +177,7 @@ describe("ERC20 interactions from Openfort Account", function () {
             account: sessionKeyAccount,
             chain,
             transport: http(hre.network.config.url),
-          }).extend(eip712WalletActions())
+        }).extend(eip712WalletActions())
 
         const hash = await writeContract(sessionKeyWalletClient, {
             account: accountWithSessionKey,
@@ -188,4 +188,153 @@ describe("ERC20 interactions from Openfort Account", function () {
         })
         console.log(`Sign With Session Key Tansaction Hash ${hash}`)
     })
+
+    it("batch calls to mint should update balance accordingly", async function () {
+        await deployTokens()
+        const batchCallerAddress = "0x7219257B57d9546c1BC0649617d557Db09C92D23"; // salt 0x666
+        // Each call data for batches
+        const mintAbi = parseAbi(["function mint(address sender, uint256 amount) external"])
+
+        const initialBalance = await publicClient.readContract({
+            account: accountWithOwner,
+            address: tokens.mockERC20,
+            abi: parseAbi(["function balanceOf(address owner) external view returns (uint256)"]),
+            functionName: "balanceOf",
+            args: [openfortAccountAddress],
+        });
+
+        const calls = [
+            {
+                target: tokens.mockERC20,
+                value: 0n,
+                callData: encodeFunctionData({
+                    abi: mintAbi,
+                    functionName: 'mint',
+                    args: [openfortAccountAddress, 10n]
+                })
+            },
+            {
+                target: tokens.mockERC20,
+                value: 0n,
+                callData: encodeFunctionData({
+                    abi: mintAbi,
+                    functionName: 'mint',
+                    args: [openfortAccountAddress, 20n]
+                })
+            },
+            {
+                target: tokens.mockERC20,
+                value: 0n,
+                callData: encodeFunctionData({
+                    abi: mintAbi,
+                    functionName: 'mint',
+                    args: [openfortAccountAddress, 30n]
+                })
+            },
+            {
+                target: tokens.mockERC20,
+                value: 0n,
+                callData: encodeFunctionData({
+                    abi: mintAbi,
+                    functionName: 'mint',
+                    args: [openfortAccountAddress, 40n]
+                })
+            }
+        ];
+
+        const abi = [
+          {
+            inputs: [
+              {
+                components: [
+                  {
+                    internalType: "address",
+                    name: "target",
+                    type: "address"
+                  },
+                  {
+                    internalType: "uint256",
+                    name: "value",
+                    type: "uint256"
+                  },
+                  {
+                    internalType: "bytes",
+                    name: "callData",
+                    type: "bytes"
+                  }
+                ],
+                internalType: "struct Call[]",
+                name: "calls",
+                type: "tuple[]"
+              }
+            ],
+            name: "batchCall",
+            outputs: [],
+            stateMutability: "nonpayable",
+            type: "function"
+          }
+        ];
+
+
+        const data = encodeFunctionData({
+            abi: abi,
+            functionName: "batchCall",
+            args: [calls]
+        })
+
+        const paymaster = {
+            paymaster: process.env.SOPHON_TESTNET_PAYMASTER_ADDRESS as `0x${string}`,
+            paymasterInput: getGeneralPaymasterInput({ innerInput: new Uint8Array() }),
+        };
+
+        const transactionRequest = await walletClient.prepareTransactionRequest({
+            type: "eip712",
+            account: accountWithOwner,
+            from: accountWithOwner.address,
+            chainId: chain.id,
+            to: batchCallerAddress,
+            data: data,
+            ...(chain.name === "Sophon" ? paymaster : {}),
+
+        })
+
+        const signableTransaction = {
+            type: "eip712",
+            from: accountWithOwner.address,
+            chainId: chain.id,
+            // preparedTransactionRequest
+
+            nonce: transactionRequest.nonce,
+            gas: transactionRequest.gas,
+            maxFeePerGas: transactionRequest.maxFeePerGas,
+            maxPriorityFeePerGas: transactionRequest.maxPriorityFeePerGas,
+            to: batchCallerAddress,
+            data: data,
+            ...(chain.name === "Sophon" ? paymaster : {}),
+
+        };
+
+        const EIP712hash = hashTypedData(chain.custom.getEip712Domain(signableTransaction))
+        const signature = await accountWithOwner.sign({ hash: EIP712hash })
+        const signedTransaction = serializeTransaction({
+            ...signableTransaction,
+            customSignature: signature,
+        });
+
+        const thehash = await publicClient.sendRawTransaction({
+            serializedTransaction: signedTransaction,
+        })
+
+        console.log("Batch Call Transaction Hash", thehash);
+
+        const finalBalance = await publicClient.readContract({
+            account: accountWithOwner,
+            address: tokens.mockERC20,
+            abi: parseAbi(["function balanceOf(address owner) external view returns (uint256)"]),
+            functionName: "balanceOf",
+            args: [openfortAccountAddress],
+        });
+        // Assert that the final balance is the initial balance plus the sum of all minted amounts
+        expect(finalBalance - initialBalance).to.equal(10n + 20n + 30n + 40n);
+    });
 })
