@@ -37,11 +37,15 @@ task("deploy-factory", "Deploy an Openfort Factory")
         // DEBUG
         console.log("Correct proxy bytecode hash: ", proxyBytecodeHash)
         // proxyArtifact.bytecode != proxyBytecode
+
+
         console.log("Wrong computed proxy bytecode hash: ", Buffer.from(utils.hashBytecode(proxyArtifact.bytecode)).toString('hex'))
 
+
+        // const proxyBytecodeHash = utils.hashBytecode(proxyArtifact.bytecode)).toString('hex')
         const constructorArguments = [
             wallet.address,
-            proxyBytecodeHash,
+            proxyBytecodeHash,  // can yo make it work with proxyBytecodeHash?
             args.account,
             RECOVERY_PERIOD,
             SECURITY_PERIOD,
@@ -67,7 +71,7 @@ task("deploy-factory", "Deploy an Openfort Factory")
                     gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
                 },
             },
-            [proxyBytecode] // additional factory deps
+            [proxyBytecode] // additional factory deps - can you make it work with proxyArtifact.bytecode?
         );
 
         const FACTORY_ADDRESS = await contract.getAddress();
