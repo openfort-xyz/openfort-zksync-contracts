@@ -3,8 +3,6 @@ pragma solidity =0.8.19;
 
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {UpgradeableOpenfortFactory} from "./UpgradeableOpenfortFactory.sol";
-
 /**
  * @title UpgradeableOpenfortProxy (Non-upgradeable)
  * @notice Contract to create the proxies
