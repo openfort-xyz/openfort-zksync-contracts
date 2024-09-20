@@ -1,16 +1,18 @@
 import { utils } from "zksync-ethers"
 import { task } from "hardhat/config"
 import { randomBytes } from "ethers";
+import { fromBytes } from "viem";
+
 
 task("deploy-account", "Deploy an Openfort Upgradeable Account")
     .addFlag("verify", "Verify the contract code on explorer")
-    .addOptionalParam("salt", "Salt for create2 deployment", "0x0000000000000000000000000000000000000000000000000000000000000042")
+    .addOptionalParam("salt", "Salt for create2 deployment")
     .setAction(async (args, hre) => {
         const contractArtifactName = "UpgradeableOpenfortAccount";
         const constructorArguments = [];
         const artifact = await hre.deployer.loadArtifact(contractArtifactName);
 
-        const salt = args.salt ?? randomBytes(32);;
+        const salt = args.salt ?? fromBytes(randomBytes(32), 'hex');
 
         const contract = await hre.deployer.deploy(artifact,
             constructorArguments,
