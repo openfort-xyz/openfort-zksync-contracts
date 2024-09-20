@@ -1,10 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity =0.8.19;
 
-import {IAccount, ACCOUNT_VALIDATION_SUCCESS_MAGIC} from "@matterlabs/zksync-contracts/l2/system-contracts/interfaces/IAccount.sol";
-import {BOOTLOADER_FORMAL_ADDRESS, DEPLOYER_SYSTEM_CONTRACT, NONCE_HOLDER_SYSTEM_CONTRACT} from "@matterlabs/zksync-contracts/l2/system-contracts/Constants.sol";
-import {SystemContractsCaller} from "@matterlabs/zksync-contracts/l2/system-contracts/libraries/SystemContractsCaller.sol";
-import {TransactionHelper, Transaction} from "@matterlabs/zksync-contracts/l2/system-contracts/libraries/TransactionHelper.sol";
+import {
+    IAccount,
+    ACCOUNT_VALIDATION_SUCCESS_MAGIC
+} from "@matterlabs/zksync-contracts/l2/system-contracts/interfaces/IAccount.sol";
+import {
+    BOOTLOADER_FORMAL_ADDRESS,
+    DEPLOYER_SYSTEM_CONTRACT,
+    NONCE_HOLDER_SYSTEM_CONTRACT
+} from "@matterlabs/zksync-contracts/l2/system-contracts/Constants.sol";
+import {SystemContractsCaller} from
+    "@matterlabs/zksync-contracts/l2/system-contracts/libraries/SystemContractsCaller.sol";
+import {
+    TransactionHelper,
+    Transaction
+} from "@matterlabs/zksync-contracts/l2/system-contracts/libraries/TransactionHelper.sol";
 import {INonceHolder} from "@matterlabs/zksync-contracts/l2/system-contracts/interfaces/INonceHolder.sol";
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -17,9 +28,10 @@ import {TokenCallbackHandler} from "./TokenCallbackHandler.sol";
 import {OpenfortErrors} from "../../interfaces/OpenfortErrors.sol";
 import {OpenfortEvents} from "../../interfaces/OpenfortEvents.sol";
 
+
 /**
  * @title BaseOpenfortAccount (Non upgradeable by default)
- * @notice Smart contract wallet with session keys following the ZKsync AA standard.
+ * @notice Smart contract wallet following the ZKsync AA standard with session keys support.
  * It inherits from:
  *  - IAccount to comply with ZKSync native Account Abstraction standard
  *  - Initializable because accounts are meant to be created using Factories
@@ -36,7 +48,6 @@ abstract contract BaseOpenfortAccount is
     OpenfortErrors,
     OpenfortEvents
 {
-
     using TransactionHelper for Transaction;
     using ECDSAUpgradeable for bytes32;
 
@@ -46,6 +57,8 @@ abstract contract BaseOpenfortAccount is
     bytes4 internal constant EXECUTE_SELECTOR = 0xbd76abb4;
     // keccak256("OpenfortMessage(bytes32 hashedMessage)");
     bytes32 internal constant OF_MSG_TYPEHASH = 0x57159f03b9efda178eab2037b2ec0b51ce11be0051b8a2a9992c29dc260e4a30;
+
+    address internal constant BATCH_CALLER_ADDRESS = 0x7219257B57d9546c1BC0649617d557Db09C92D23;
 
     /**
      * Struct to keep track of session keys' data
@@ -66,8 +79,7 @@ abstract contract BaseOpenfortAccount is
         address registrarAddress;
     }
 
-    mapping(address sessionKey => SessionKeyStruct sessionKeyData)
-        public sessionKeys;
+    mapping(address sessionKey => SessionKeyStruct sessionKeyData) public sessionKeys;
 
     constructor() {
         emit AccountImplementationDeployed(msg.sender);
@@ -77,10 +89,7 @@ abstract contract BaseOpenfortAccount is
     function owner() public view virtual returns (address);
 
     modifier onlyBootloader() {
-        require(
-            msg.sender == BOOTLOADER_FORMAL_ADDRESS,
-            "Only bootloader can call this method"
-        );
+        require(msg.sender == BOOTLOADER_FORMAL_ADDRESS, "Only bootloader can call this method");
         _;
     }
 
@@ -99,55 +108,54 @@ abstract contract BaseOpenfortAccount is
         return _validateTransaction(_suggestedSignedHash, _transaction);
     }
 
-
-    function _validateTransaction(
-        bytes32 _suggestedSignedHash,
-        Transaction calldata _transaction
-    ) internal returns (bytes4 magic) {
+    function _validateTransaction(bytes32 _suggestedSignedHash, Transaction calldata _transaction)
+        internal
+        returns (bytes4 magic)
+    {
         // Incrementing the nonce of the account.
-        // Note, that reserved[0] by convention is currently equal to the nonce passed in the transaction
         SystemContractsCaller.systemCallWithPropagatedRevert(
             uint32(gasleft()),
             address(NONCE_HOLDER_SYSTEM_CONTRACT),
             0,
-            abi.encodeCall(
-                INonceHolder.incrementMinNonceIfEquals,
-                (_transaction.nonce)
-            )
+            abi.encodeCall(INonceHolder.incrementMinNonceIfEquals, (_transaction.nonce))
         );
 
         // While the suggested signed hash is usually provided, it is generally
         // not recommended to rely on it to be present, since in the future
         // there may be tx types with no suggested signed hash.
-        bytes32 txHash = _suggestedSignedHash == bytes32(0)
-            ? _transaction.encodeHash()
-            : _suggestedSignedHash;
+        bytes32 txHash = _suggestedSignedHash == bytes32(0) ? _transaction.encodeHash() : _suggestedSignedHash;
 
         // explicitly check for insufficient funds to prevent user paying fee for a
         // transaction that wouldn't be included on Ethereum.
         uint256 totalRequiredBalance = _transaction.totalRequiredBalance();
-        require(
-            totalRequiredBalance <= address(this).balance,
-            "Not enough balance for fee + value"
-        );
 
-        if (
-            _validateSignature(txHash, _transaction.signature, _transaction.data) ==
-            EIP1271_SUCCESS_RETURN_VALUE
-        ) {
+        require(totalRequiredBalance <= address(this).balance, "Not enough balance for fee + value");
+
+        if (_validateSignature(txHash, _transaction.signature, _transaction.to) == EIP1271_SUCCESS_RETURN_VALUE) {
             magic = ACCOUNT_VALIDATION_SUCCESS_MAGIC;
         } else {
             magic = "";
         }
     }
 
-    function _validateSignature(
-        bytes32 _hash,
-        bytes memory _signature,
-        bytes calldata transactionCallData
-    ) internal returns (bytes4 magic) {
+    function _validateSignature(bytes32 _hash, bytes memory _signature, uint256 _to) internal returns (bytes4 magic) {
         magic = EIP1271_SUCCESS_RETURN_VALUE;
+        address signerAddress = _recoverECDSAsignature(_hash, _signature);
 
+        // Note, that we should abstain from using the require here in order to allow for fee estimation to work
+        if (signerAddress != owner() && signerAddress != address(0)) {
+            // if not owner, try session key validation
+            if (!isValidSessionKey(signerAddress, _to)) {
+                magic = "";
+            }
+        }
+    }
+
+    function _recoverECDSAsignature(bytes32 _hash, bytes memory _signature)
+        internal
+        pure
+        returns (address signerAddress)
+    {
         if (_signature.length != 65) {
             // Signature is invalid anyway, but we need to proceed with the signature verification as usual
             // in order for the fee estimation to work correctly
@@ -156,7 +164,6 @@ abstract contract BaseOpenfortAccount is
             // while skipping the main verification process.
             _signature[64] = bytes1(uint8(27));
         }
-
         // extract ECDSA signature
         uint8 v;
         bytes32 r;
@@ -167,79 +174,40 @@ abstract contract BaseOpenfortAccount is
             s := mload(add(_signature, 0x40))
             v := and(mload(add(_signature, 0x41)), 0xff)
         }
-
         // The v value in Ethereum signatures is usually 27 or 28.
         // However, some libraries may produce v values of 0 or 1.
         // This line ensures that v is correctly normalized to either 27 or 28.
         if (v < 27) v += 27;
-
-        address signerAddress = ecrecover(_hash, v, r, s);
-
-        // Note, that we should abstain from using the require here in order to allow for fee estimation to work
-        if (signerAddress != owner() && signerAddress != address(0)) {
-            // if not owner, try session key validation
-            if (!isValidSessionKey(signerAddress, transactionCallData)) {
-                magic = "";
-            }
-        }
+        signerAddress = ecrecover(_hash, v, r, s);
     }
 
     /*
      * @notice Return whether a sessionKey is valid.
      */
-    function isValidSessionKey(
-        address _sessionKey,
-        bytes calldata _callData
-    ) internal virtual returns (bool) {
+    function isValidSessionKey(address _sessionKey, uint256 _to) internal virtual returns (bool) {
         SessionKeyStruct storage sessionKey = sessionKeys[_sessionKey];
         // If not owner and the session key is revoked, return false
         if (sessionKey.validUntil == 0) return false;
-
         // If the sessionKey was not registered by the owner, return false
-        // If the account is transferred or sold, isValidSessionKey() will return false with old session keys
+        // If the account is transferred or sold, isValidSessionKey() will return false with old session keys;
         if (sessionKey.registrarAddress != owner()) return false;
 
-        // TODO:
-        // verify that sessionKey is active for the current `block.timestamp`
-        // blocker: zkSync doesn't allow access to contextual variables in the AA signature validation
-
-        // If the signer is a session key that is still valid
-        // Let's first get the selector of the function that the caller is using
-        bytes4 funcSelector = _callData[0] |
-            (bytes4(_callData[1]) >> 8) |
-            (bytes4(_callData[2]) >> 16) |
-            (bytes4(_callData[3]) >> 24);
-
-        if (funcSelector == EXECUTE_SELECTOR) {
-            Transaction memory zkSyncTransaction;            
-            (, , zkSyncTransaction) = abi.decode(
-                _callData[4:],
-                (bytes32, bytes32, Transaction)
-            );
-
-            address to = address(uint160(zkSyncTransaction.to));
-            
-            // Check if reenter, do not allow
-            if (to == address(this)) return false;
-
-            // Check if it is a masterSessionKey
-            if (sessionKey.masterSessionKey) return true;
-
-            // Limit of transactions per sessionKey reached
-            if (sessionKey.limit == 0) return false;
-            // Deduct one use of the limit for the given session key
-            unchecked {
-                sessionKey.limit = sessionKey.limit - 1;
-            }
-
-            // If there is no whitelist or there is, but the target is whitelisted, return true
-            if (!sessionKey.whitelisting || sessionKey.whitelist[to])
-                return true;
-
-            return false; // All other cases, deny
-            }
-
-        // If a session key is used for other functions other than executeTransaction(), deny
+        address to = address(uint160(_to));
+        // Check if reenter, do not allow
+        if (to == address(this)) return false;
+        // Check if it is a masterSessionKey
+        if (sessionKey.masterSessionKey) return true;
+        // Limit of transactions per sessionKey reached
+        if (sessionKey.limit == 0) return false;
+        // Deduct one use of the limit for the given session key
+        unchecked {
+            sessionKey.limit = sessionKey.limit - 1;
+        }
+        // If there is no whitelist or there is, but the target is whitelisted, return true
+        if (!sessionKey.whitelisting || sessionKey.whitelist[to]) {
+            return true;
+        }
+        // All other cases, deny
         return false;
     }
 
@@ -247,11 +215,7 @@ abstract contract BaseOpenfortAccount is
      * @notice See EIP-1271
      * Owner and session keys need to sign using EIP712.
      */
-    function isValidSignature(
-        bytes32 _hash,
-        bytes memory _signature
-    ) public view override returns (bytes4) {
-
+    function isValidSignature(bytes32 _hash, bytes memory _signature) public view override returns (bytes4) {
         bytes32 structHash = keccak256(abi.encode(OF_MSG_TYPEHASH, _hash));
         bytes32 digest = _hashTypedDataV4(structHash);
         address signer = digest.recover(_signature);
@@ -264,14 +228,14 @@ abstract contract BaseOpenfortAccount is
                 || sessionKey.validUntil < block.timestamp || (!sessionKey.masterSessionKey && sessionKey.limit < 1)
         ) {
             return 0xffffffff;
-        } // Not owner or session key revoked
+        }
+        // Not owner or session key revoked
         else if (sessionKey.registrarAddress != owner()) {
             return 0xffffffff;
         } else {
             return EIP1271_SUCCESS_RETURN_VALUE;
         }
     }
-
 
     // ---------------------------------- //
     //             Execution              //
@@ -280,21 +244,49 @@ abstract contract BaseOpenfortAccount is
     /**
      * @inheritdoc IAccount
      */
-    function executeTransaction(
-        bytes32 _txHash,
-        bytes32 _suggestedSignedHash,
-        Transaction calldata _transaction
-    ) external payable override onlyBootloader{
-        address to = address(uint160(_transaction.to));
-        require(to != address(DEPLOYER_SYSTEM_CONTRACT), "Deployment from smart account not supported");
-        _call(to, _transaction.value, _transaction.data);
+    function executeTransaction(bytes32, bytes32 _suggestedSignedHash, Transaction calldata _transaction)
+        external
+        payable
+        override
+        onlyBootloader
+    {
+        _executeTransaction(_transaction);
     }
 
-    function payForTransaction(
-        bytes32,
-        bytes32,
-        Transaction calldata _transaction
-    ) external payable override onlyBootloader {
+    function executeTransactionFromOutside(Transaction calldata _transaction) external payable {
+        _validateTransaction(bytes32(0), _transaction);
+        _executeTransaction(_transaction);
+    }
+
+    function _executeTransaction(Transaction calldata _transaction) internal {
+        address to = address(uint160(_transaction.to));
+        require(to != address(DEPLOYER_SYSTEM_CONTRACT), "Deployment from smart account not supported");
+        // ! WARNING ! SESSION KEY VALIDATION
+        // THIS CODE DOES NOT BELONG IN THE EXECUTION LOGIC
+        // SIGNATURE HAS ALREADY BEEN RECOVERED IN THE VALIDATION FLOW
+
+        // TODO: MOVE IT TO THE VALIDATION LOGIC WHEN CONTEXTUAL VARIABLES ARE AVAILABLE
+        bytes32 txHash = _transaction.encodeHash();
+        address signer = _recoverECDSAsignature(txHash, _transaction.signature);
+
+        if (signer != owner() && signer != address(0)) {
+            SessionKeyStruct storage sk = sessionKeys[signer];
+            if (block.timestamp < sk.validAfter || block.timestamp > sk.validUntil) {
+                revert SessionKeyOutOfTimeRange();
+            }
+        }
+
+        to == BATCH_CALLER_ADDRESS
+            ? _executeDelegatecall(to, _transaction.data)
+            : _call(to, _transaction.value, _transaction.data);
+    }
+
+    function payForTransaction(bytes32, bytes32, Transaction calldata _transaction)
+        external
+        payable
+        override
+        onlyBootloader
+    {
         bool success = _transaction.payToTheBootloader();
         require(success, "Failed to pay the fee to the operator");
     }
@@ -334,21 +326,12 @@ abstract contract BaseOpenfortAccount is
         address[] calldata _whitelist
     ) external virtual {
         _requireFromOwner();
-        require(
-            _validUntil > block.timestamp,
-            "Cannot register an expired session key"
-        );
-        require(
-            _validAfter < _validUntil,
-            "_validAfter must be lower than _validUntil"
-        );
-        require(
-            sessionKeys[_key].validUntil == 0,
-            "SessionKey already registered"
-        );
+        require(_validUntil > block.timestamp, "Cannot register an expired session key");
+        require(_validAfter < _validUntil, "_validAfter must be lower than _validUntil");
+        require(sessionKeys[_key].validUntil == 0, "SessionKey already registered");
         require(_whitelist.length < 11, "Whitelist too big");
         uint256 i;
-        for (i; i < _whitelist.length; ) {
+        for (i; i < _whitelist.length;) {
             sessionKeys[_key].whitelist[_whitelist[i]] = true;
             unchecked {
                 ++i;
@@ -360,9 +343,11 @@ abstract contract BaseOpenfortAccount is
             sessionKeys[_key].masterSessionKey = false;
         } else {
             // If there is some limit, it is not a masterSessionKey
-            if (_limit == ((2 ** 48) - 1))
+            if (_limit == ((2 ** 48) - 1)) {
                 sessionKeys[_key].masterSessionKey = true;
-            else sessionKeys[_key].masterSessionKey = false;
+            } else {
+                sessionKeys[_key].masterSessionKey = false;
+            }
         }
 
         sessionKeys[_key].validAfter = _validAfter;
@@ -391,17 +376,28 @@ abstract contract BaseOpenfortAccount is
     /**
      * @dev Call a target contract and reverts if it fails.
      */
-    function _call(
-        address _target,
-        uint256 _value,
-        bytes calldata _calldata
-    ) internal virtual {
-        (bool success, bytes memory result) = _target.call{value: _value}(
-            _calldata
-        );
+    function _call(address _target, uint256 _value, bytes calldata _calldata) internal virtual {
+        (bool success, bytes memory result) = _target.call{value: _value}(_calldata);
         if (!success) {
             assembly {
                 revert(add(result, 32), mload(result))
+            }
+        }
+    }
+
+    /// @dev Execute a delegatecall with `delegate` on this account.
+    function _executeDelegatecall(address delegate, bytes calldata callData) internal virtual {
+        /// @solidity memory-safe-assembly
+
+        bytes memory result;
+        assembly {
+            result := mload(0x40)
+            calldatacopy(result, callData.offset, callData.length)
+            // Forwards the `data` to `delegate` via delegatecall.
+            if iszero(delegatecall(gas(), delegate, result, callData.length, codesize(), 0x00)) {
+                // Bubble up the revert if the call reverts.
+                returndatacopy(result, 0x00, returndatasize())
+                revert(result, returndatasize())
             }
         }
     }

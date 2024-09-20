@@ -1,9 +1,5 @@
 node_modules/
 
-# Compiler files
-cache/
-out/
-
 # Ignores development broadcast logs
 !/broadcast
 /broadcast/*/31337/
@@ -12,5 +8,11 @@ out/
 # Docs
 docs/
 
-# Dotenv file
+# dotenv environment variables file
 .env
+.env.test
+
+# hardhat
+artifacts-zk
+cache-zk
+deployments-zk
