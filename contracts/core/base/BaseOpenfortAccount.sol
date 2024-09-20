@@ -58,6 +58,8 @@ abstract contract BaseOpenfortAccount is
     // keccak256("OpenfortMessage(bytes32 hashedMessage)");
     bytes32 internal constant OF_MSG_TYPEHASH = 0x57159f03b9efda178eab2037b2ec0b51ce11be0051b8a2a9992c29dc260e4a30;
 
+    address internal constant BATCH_CALLER_ADDRESS = 0x7219257B57d9546c1BC0649617d557Db09C92D23;
+
     /**
      * Struct to keep track of session keys' data
      * @param validAfter this sessionKey is valid only after this timestamp.
@@ -136,12 +138,10 @@ abstract contract BaseOpenfortAccount is
         }
     }
 
-    function _validateSignature(bytes32 _hash, bytes memory _signature, uint256 _to)
-        internal
-        returns (bytes4 magic)
-    {
+    function _validateSignature(bytes32 _hash, bytes memory _signature, uint256 _to) internal returns (bytes4 magic) {
         magic = EIP1271_SUCCESS_RETURN_VALUE;
         address signerAddress = _recoverECDSAsignature(_hash, _signature);
+
         // Note, that we should abstain from using the require here in order to allow for fee estimation to work
         if (signerAddress != owner() && signerAddress != address(0)) {
             // if not owner, try session key validation
@@ -151,8 +151,11 @@ abstract contract BaseOpenfortAccount is
         }
     }
 
-
-    function _recoverECDSAsignature(bytes32 _hash, bytes memory _signature) internal pure returns (address signerAddress) {
+    function _recoverECDSAsignature(bytes32 _hash, bytes memory _signature)
+        internal
+        pure
+        returns (address signerAddress)
+    {
         if (_signature.length != 65) {
             // Signature is invalid anyway, but we need to proceed with the signature verification as usual
             // in order for the fee estimation to work correctly
@@ -225,7 +228,8 @@ abstract contract BaseOpenfortAccount is
                 || sessionKey.validUntil < block.timestamp || (!sessionKey.masterSessionKey && sessionKey.limit < 1)
         ) {
             return 0xffffffff;
-        } // Not owner or session key revoked
+        }
+        // Not owner or session key revoked
         else if (sessionKey.registrarAddress != owner()) {
             return 0xffffffff;
         } else {
@@ -262,7 +266,7 @@ abstract contract BaseOpenfortAccount is
         // SIGNATURE HAS ALREADY BEEN RECOVERED IN THE VALIDATION FLOW
 
         // TODO: MOVE IT TO THE VALIDATION LOGIC WHEN CONTEXTUAL VARIABLES ARE AVAILABLE
-        bytes32 txHash =  _transaction.encodeHash();
+        bytes32 txHash = _transaction.encodeHash();
         address signer = _recoverECDSAsignature(txHash, _transaction.signature);
 
         if (signer != owner() && signer != address(0)) {
@@ -271,7 +275,10 @@ abstract contract BaseOpenfortAccount is
                 revert SessionKeyOutOfTimeRange();
             }
         }
-        _call(to, _transaction.value, _transaction.data);
+
+        to == BATCH_CALLER_ADDRESS
+            ? _executeDelegatecall(to, _transaction.data)
+            : _call(to, _transaction.value, _transaction.data);
     }
 
     function payForTransaction(bytes32, bytes32, Transaction calldata _transaction)
@@ -374,6 +381,23 @@ abstract contract BaseOpenfortAccount is
         if (!success) {
             assembly {
                 revert(add(result, 32), mload(result))
+            }
+        }
+    }
+
+    /// @dev Execute a delegatecall with `delegate` on this account.
+    function _executeDelegatecall(address delegate, bytes calldata callData) internal virtual {
+        /// @solidity memory-safe-assembly
+
+        bytes memory result;
+        assembly {
+            result := mload(0x40)
+            calldatacopy(result, callData.offset, callData.length)
+            // Forwards the `data` to `delegate` via delegatecall.
+            if iszero(delegatecall(gas(), delegate, result, callData.length, codesize(), 0x00)) {
+                // Bubble up the revert if the call reverts.
+                returndatacopy(result, 0x00, returndatasize())
+                revert(result, returndatasize())
             }
         }
     }

@@ -10,8 +10,7 @@ task("deploy-account", "Deploy an Openfort Upgradeable Account")
         const constructorArguments = [];
         const artifact = await hre.deployer.loadArtifact(contractArtifactName);
 
-        const randomSalt = randomBytes(32);
-        const salt = args.salt ?? randomSalt;
+        const salt = args.salt ?? randomBytes(32);;
 
         const contract = await hre.deployer.deploy(artifact,
             constructorArguments,
