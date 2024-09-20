@@ -1,7 +1,7 @@
 import { utils } from "zksync-ethers"
 import { task } from "hardhat/config"
-import { randomBytes } from "ethers";
-import { fromBytes } from "viem";
+import { randomBytes } from "ethers"
+import { fromBytes } from "viem"
 
 
 task("deploy-account", "Deploy an Openfort Upgradeable Account")
