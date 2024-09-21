@@ -244,7 +244,7 @@ abstract contract BaseOpenfortAccount is
     /**
      * @inheritdoc IAccount
      */
-    function executeTransaction(bytes32, bytes32 _suggestedSignedHash, Transaction calldata _transaction)
+    function executeTransaction(bytes32, bytes32, Transaction calldata _transaction)
         external
         payable
         override

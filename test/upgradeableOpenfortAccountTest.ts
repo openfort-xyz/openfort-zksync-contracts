@@ -90,7 +90,7 @@ describe("ERC20 interactions from Openfort Account", function () {
 
         // OPENFORT FLOW:
         // for self-custody accounts: Openfort returns a serialized signable hash from a transaction intent
-        // User must sign it then call the `signature` endpoint to broadcast through `sendRawTranscatoin`
+        // User must sign it then call the `signature` endpoint to broadcast through `sendRawTransaction`
 
         const EIP712hash = hashTypedData(chain.custom.getEip712Domain(signableTransaction))
         const signature = await accountWithOwner.sign({ hash: EIP712hash })

@@ -9,9 +9,11 @@ import { createWalletClient,
   getAddress,
   slice,
   pad,
-  concat
+  concat,
+  Hex,
+  fromBytes
 } from "viem"
-import { eip712WalletActions } from "viem/zksync"
+import { eip712WalletActions, hashBytecode } from "viem/zksync"
 import { privateKeyToAccount } from "viem/accounts"
 import { task } from "hardhat/config"
 import { getViemChainFromConfig, writeContract } from "./utils"
@@ -61,14 +63,13 @@ task("get-account", "Compute zkSync create2 address of an account")
   .addParam("nonce", "Number to generate predictive address with CREATE2")
   .setAction(async (args, hre) => {
     const account = privateKeyToAccount(hre.network.config.accounts[0])
-    // const proxyArtifactName = "UpgradeableOpenfortProxy";
-    // const proxyArtifact = await hre.deployer.loadArtifact(proxyArtifactName);
+    const proxyArtifact = await hre.deployer.loadArtifact("UpgradeableOpenfortProxy");
     const abiTypes = parseAbiParameters("address, bytes32");
     const nonce = numberToHex(args.nonce, {size: 32})
     // https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instructions#address-derivation
     const accountProxy = create2Address(
       args.factory,
-      "0x010000a54c9de7cae403cb015684edcf24a518b73a06ef7ac6ea5da27134f3e0", //hashBytecode(proxyArtifact.bytecode) from viem/zksync/utils
+      fromBytes(hashBytecode(proxyArtifact.bytecode as Hex), "hex"),
       keccak256(encodeAbiParameters(abiTypes, [account.address, nonce])),
       encodeAbiParameters(parseAbiParameters("address, bytes"), [args.implementation, "0x"])
     )
