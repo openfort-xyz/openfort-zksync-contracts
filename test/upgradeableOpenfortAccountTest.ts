@@ -1,9 +1,9 @@
 import { expect } from "chai"
-import { encodeFunctionData, encodePacked, parseAbi } from "viem"
+import { concat, encodeFunctionData, encodePacked, keccak256, pad, parseAbi, toHex } from "viem"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { eip712WalletActions, toSinglesigSmartAccount } from "viem/zksync"
 import { createWalletClient, createPublicClient, hashTypedData, http } from "viem"
-import { getViemChainFromConfig, writeContract } from "../tasks/utils"
+import { getEIP712Domain, getViemChainFromConfig, writeContract } from "../tasks/utils"
 import { getGeneralPaymasterInput, serializeTransaction } from "viem/zksync"
 import hre from "hardhat";
 
@@ -209,7 +209,7 @@ describe("ERC20 interactions from Openfort Account", function () {
                 value: 0n,
                 callData: encodeFunctionData({
                     abi: mintAbi,
-                    functionName: 'mint',
+                    functionName: "mint",
                     args: [openfortAccountAddress, 10n]
                 })
             },
@@ -218,7 +218,7 @@ describe("ERC20 interactions from Openfort Account", function () {
                 value: 0n,
                 callData: encodeFunctionData({
                     abi: mintAbi,
-                    functionName: 'mint',
+                    functionName: "mint",
                     args: [openfortAccountAddress, 20n]
                 })
             },
@@ -227,7 +227,7 @@ describe("ERC20 interactions from Openfort Account", function () {
                 value: 0n,
                 callData: encodeFunctionData({
                     abi: mintAbi,
-                    functionName: 'mint',
+                    functionName: "mint",
                     args: [openfortAccountAddress, 30n]
                 })
             },
@@ -236,45 +236,44 @@ describe("ERC20 interactions from Openfort Account", function () {
                 value: 0n,
                 callData: encodeFunctionData({
                     abi: mintAbi,
-                    functionName: 'mint',
+                    functionName: "mint",
                     args: [openfortAccountAddress, 40n]
                 })
             }
         ];
 
         const abi = [
-          {
-            inputs: [
-              {
-                components: [
-                  {
-                    internalType: "address",
-                    name: "target",
-                    type: "address"
-                  },
-                  {
-                    internalType: "uint256",
-                    name: "value",
-                    type: "uint256"
-                  },
-                  {
-                    internalType: "bytes",
-                    name: "callData",
-                    type: "bytes"
-                  }
+            {
+                inputs: [
+                    {
+                        components: [
+                            {
+                                internalType: "address",
+                                name: "target",
+                                type: "address"
+                            },
+                            {
+                                internalType: "uint256",
+                                name: "value",
+                                type: "uint256"
+                            },
+                            {
+                                internalType: "bytes",
+                                name: "callData",
+                                type: "bytes"
+                            }
+                        ],
+                        internalType: "struct Call[]",
+                        name: "calls",
+                        type: "tuple[]"
+                    }
                 ],
-                internalType: "struct Call[]",
-                name: "calls",
-                type: "tuple[]"
-              }
-            ],
-            name: "batchCall",
-            outputs: [],
-            stateMutability: "nonpayable",
-            type: "function"
-          }
+                name: "batchCall",
+                outputs: [],
+                stateMutability: "nonpayable",
+                type: "function"
+            }
         ];
-
 
         const data = encodeFunctionData({
             abi: abi,
@@ -337,4 +336,44 @@ describe("ERC20 interactions from Openfort Account", function () {
         // Assert that the final balance is the initial balance plus the sum of all minted amounts
         expect(finalBalance - initialBalance).to.equal(10n + 20n + 30n + 40n);
     });
+
+    it("should validate the EIP-712 signature correctly with the given message structure", async function () {
+        // keccak256("OpenfortMessage(bytes32 message)")
+        const OF_MSG_TYPEHASH = "0x57159f03b9efda178eab2037b2ec0b51ce11be0051b8a2a9992c29dc260e4a30"
+        // keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
+        const TYPE_HASH = "0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f"
+
+        const messageToSign = "Signed by Owner"
+        const hash = keccak256(new TextEncoder().encode(messageToSign))
+        const structHash = keccak256(encodePacked(["bytes32", "bytes32"], [OF_MSG_TYPEHASH, hash]))
+
+        const [,name, version, chainId, verifyingContract,,] = await getEIP712Domain(openfortAccountAddress, publicClient)
+
+        // Manually calculate domain separator
+        // to include TYPE_HASH
+        const domainSeparator = keccak256(
+            concat([
+                TYPE_HASH,
+                pad(keccak256(Buffer.from(name)), { size: 32 }),
+                pad(keccak256(Buffer.from(version)), { size: 32 }),
+                pad(toHex(chainId), { size: 32 }),
+                pad(verifyingContract, { size: 32 })
+            ])
+        );
+        const hashToSign = keccak256(concat(["0x1901", domainSeparator, structHash]))
+        // Sign the message
+        const signature = await owner.sign({ hash: hashToSign })
+        const abi = parseAbi(["function isValidSignature(bytes32 _hash, bytes memory _signature) external view returns (bytes4)"]);
+        const isValid = await publicClient.readContract({
+            address: openfortAccountAddress,
+            abi,
+            functionName: "isValidSignature",
+            args: [hash, signature],
+        });
+        // Assert that the signature is valid
+        expect(isValid).to.equal("0x1626ba7e"); // EIP1271_SUCCESS_RETURN_VALUE
+    });
 })
+
+
+
