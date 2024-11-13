@@ -55,7 +55,7 @@ task("deploy-factory", "Deploy an Openfort Factory")
                     gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
                 },
             },
-            [proxyArtifact.bytecode] // Pass the bytecode for additional factory deps
+            [proxyArtifact.bytecode]
         )
 
         const FACTORY_ADDRESS = await contract.getAddress()
