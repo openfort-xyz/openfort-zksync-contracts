@@ -28,6 +28,17 @@ import {TokenCallbackHandler} from "./TokenCallbackHandler.sol";
 import {OpenfortErrors} from "../../interfaces/OpenfortErrors.sol";
 import {OpenfortEvents} from "../../interfaces/OpenfortEvents.sol";
 
+// Each call data for batches
+struct Call {
+    address target; // Target contract address
+    uint256 value; // Amount of ETH to send with call
+    bytes callData; // Calldata to send
+}
+
+interface ITimestampAsserter {
+	function assertTimestampInRange(uint256 start, uint256 end) external view;
+}
+
 
 /**
  * @title BaseOpenfortAccount (Non upgradeable by default)
@@ -50,7 +61,6 @@ abstract contract BaseOpenfortAccount is
 {
     using TransactionHelper for Transaction;
     using ECDSAUpgradeable for bytes32;
-
     // bytes4(keccak256("isValidSignature(bytes32,bytes)")
     bytes4 internal constant EIP1271_SUCCESS_RETURN_VALUE = 0x1626ba7e;
     // bytes4(keccak256("executeTransaction(bytes32,bytes32,Transaction)")
@@ -59,6 +69,8 @@ abstract contract BaseOpenfortAccount is
     bytes32 internal constant OF_MSG_TYPEHASH = 0x57159f03b9efda178eab2037b2ec0b51ce11be0051b8a2a9992c29dc260e4a30;
 
     address internal constant BATCH_CALLER_ADDRESS = 0x7219257B57d9546c1BC0649617d557Db09C92D23;
+    address internal constant TIMESTAMP_ASSERTER_ADDRESS = 0x5ea4C1df68Fd54EA9242bC6C405E7699EBbcb5F1;
+
 
     /**
      * Struct to keep track of session keys' data
@@ -131,21 +143,27 @@ abstract contract BaseOpenfortAccount is
 
         require(totalRequiredBalance <= address(this).balance, "Not enough balance for fee + value");
 
-        if (_validateSignature(txHash, _transaction.signature, _transaction.to) == EIP1271_SUCCESS_RETURN_VALUE) {
+        if (
+            _validateSignature(txHash, _transaction.signature, _transaction.to, _transaction.data)
+                == EIP1271_SUCCESS_RETURN_VALUE
+        ) {
             magic = ACCOUNT_VALIDATION_SUCCESS_MAGIC;
         } else {
             magic = "";
         }
     }
 
-    function _validateSignature(bytes32 _hash, bytes memory _signature, uint256 _to) internal returns (bytes4 magic) {
+    function _validateSignature(bytes32 _hash, bytes memory _signature, uint256 _to, bytes calldata _data)
+        internal
+        returns (bytes4 magic)
+    {
         magic = EIP1271_SUCCESS_RETURN_VALUE;
         address signerAddress = _recoverECDSAsignature(_hash, _signature);
 
         // Note, that we should abstain from using the require here in order to allow for fee estimation to work
         if (signerAddress != owner() && signerAddress != address(0)) {
             // if not owner, try session key validation
-            if (!isValidSessionKey(signerAddress, _to)) {
+            if (!isValidSessionKey(signerAddress, _to, _data)) {
                 magic = "";
             }
         }
@@ -184,27 +202,45 @@ abstract contract BaseOpenfortAccount is
     /*
      * @notice Return whether a sessionKey is valid.
      */
-    function isValidSessionKey(address _sessionKey, uint256 _to) internal virtual returns (bool) {
+    function isValidSessionKey(address _sessionKey, uint256 _to, bytes calldata _data) internal virtual returns (bool) {
         SessionKeyStruct storage sessionKey = sessionKeys[_sessionKey];
         // If not owner and the session key is revoked, return false
         if (sessionKey.validUntil == 0) return false;
         // If the sessionKey was not registered by the owner, return false
         // If the account is transferred or sold, isValidSessionKey() will return false with old session keys;
         if (sessionKey.registrarAddress != owner()) return false;
+        // If the session key is out of time range, return false
 
-        address to = address(uint160(_to));
-        // Check if reenter, do not allow
-        if (to == address(this)) return false;
-        // Check if it is a masterSessionKey
+        ITimestampAsserter timestampAsserter = ITimestampAsserter(TIMESTAMP_ASSERTER_ADDRESS);
+        timestampAsserter.assertTimestampInRange(sessionKey.validAfter, sessionKey.validUntil);
+
+        // master session key bypasses whitelist and limit checks
         if (sessionKey.masterSessionKey) return true;
+        address to = address(uint160(_to));
+        if (to != BATCH_CALLER_ADDRESS) {
+            return _validateSessionKeyCall(sessionKey, to);
+        }
+        Call[] memory calls = abi.decode(_data[4:], (Call[]));
+        for (uint256 i; i < calls.length;) {
+            if (!_validateSessionKeyCall(sessionKey, calls[i].target)) return false;
+            unchecked {
+                ++i;
+            }
+        }
+        return true;
+    }
+
+    function _validateSessionKeyCall(SessionKeyStruct storage _sessionKey, address _to) internal returns (bool) {
+        // Check if reenter, do not allow
+        if (_to == address(this)) return false;
         // Limit of transactions per sessionKey reached
-        if (sessionKey.limit == 0) return false;
+        if (_sessionKey.limit == 0) return false;
         // Deduct one use of the limit for the given session key
         unchecked {
-            sessionKey.limit = sessionKey.limit - 1;
+            _sessionKey.limit = _sessionKey.limit - 1;
         }
         // If there is no whitelist or there is, but the target is whitelisted, return true
-        if (!sessionKey.whitelisting || sessionKey.whitelist[to]) {
+        if (!_sessionKey.whitelisting || _sessionKey.whitelist[_to]) {
             return true;
         }
         // All other cases, deny
@@ -261,21 +297,6 @@ abstract contract BaseOpenfortAccount is
     function _executeTransaction(Transaction calldata _transaction) internal {
         address to = address(uint160(_transaction.to));
         require(to != address(DEPLOYER_SYSTEM_CONTRACT), "Deployment from smart account not supported");
-        // ! WARNING ! SESSION KEY VALIDATION
-        // THIS CODE DOES NOT BELONG IN THE EXECUTION LOGIC
-        // SIGNATURE HAS ALREADY BEEN RECOVERED IN THE VALIDATION FLOW
-
-        // TODO: MOVE IT TO THE VALIDATION LOGIC WHEN CONTEXTUAL VARIABLES ARE AVAILABLE
-        bytes32 txHash = _transaction.encodeHash();
-        address signer = _recoverECDSAsignature(txHash, _transaction.signature);
-
-        if (signer != owner() && signer != address(0)) {
-            SessionKeyStruct storage sk = sessionKeys[signer];
-            if (block.timestamp < sk.validAfter || block.timestamp > sk.validUntil) {
-                revert SessionKeyOutOfTimeRange();
-            }
-        }
-
         to == BATCH_CALLER_ADDRESS
             ? _executeDelegatecall(to, _transaction.data)
             : _call(to, _transaction.value, _transaction.data);
