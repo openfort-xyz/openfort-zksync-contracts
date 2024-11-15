@@ -531,7 +531,7 @@ describe("ERC20 interactions from Openfort Account", function () {
         const TYPE_HASH = "0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f"
 
         const messageToSign = "Signed by Owner"
-        const hash = keccak256(new TextEncoder().encode(messageToSign))
+        const hash = keccak256(Buffer.from(messageToSign))
         const structHash = keccak256(encodePacked(["bytes32", "bytes32"], [OF_MSG_TYPEHASH, hash]))
 
         const [, name, version, chainId, verifyingContract, ,] = await getEIP712Domain(openfortAccountAddress, publicClient)

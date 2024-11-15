@@ -209,11 +209,9 @@ abstract contract BaseOpenfortAccount is
         // If the sessionKey was not registered by the owner, return false
         // If the account is transferred or sold, isValidSessionKey() will return false with old session keys;
         if (sessionKey.registrarAddress != owner()) return false;
-        // If the session key is out of time range, return false
-
+        // If the session key is out of time range, *revert*
         ITimestampAsserter timestampAsserter = ITimestampAsserter(TIMESTAMP_ASSERTER_ADDRESS);
         timestampAsserter.assertTimestampInRange(sessionKey.validAfter, sessionKey.validUntil);
-
         // master session key bypasses whitelist and limit checks
         if (sessionKey.masterSessionKey) return true;
         address to = address(uint160(_to));
