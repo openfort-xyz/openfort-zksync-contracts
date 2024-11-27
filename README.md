@@ -23,13 +23,25 @@
 [banner-image]: .github/img/OpenfortRed.png
 
 
-# Openfort ZKSync contracts - WORK IN PROGRESS
+# Openfort ZKSync contracts
 
+## Overview
+
+
+[Openfort Smart Accounts](https://github.com/openfort-xyz/openfort-contracts) for zkSync.
+
+
+zkSync is a zero-knowledge Ethereum rollup featuring its own zkEVM, which operates with bytecode distinct from Ethereum's EVM. While [99% of Ethereum projects can be redeployed on zkSync without requiring refactoring or re-auditing](https://github.com/matter-labs/era-zk_evm), Account Abstraction contracts fall into the remaining 1%.
+
+Unlike traditional Ethereum setups, zkSync natively supports Account Abstraction, eliminating the need for ERC-4337 and its associated EntryPoint contract.
+Account features like session keys, guardians, and contracts upgradeability stratregy, MUST conform with [Openfort Smart Accounts](https://github.com/openfort-xyz/openfort-contracts).
+
+This repository contains only end to end tests because openfort-contracts is already heavily tested and audited.
 
 
 ### Build
 ```
-  git clone https://github.com/openfort-xyz/openfort-contracts.git && cd openfort-contracts
+  git clone https://github.com/openfort-xyz/openfort-zksync-contracts.git && cd openfort-zksync-contracts
   yarn
   yarn hardhat compile
 ```
@@ -40,8 +52,22 @@
 
 Run e2e tests on a freshly created account deployed from a fresh factory (long setup time)
 
+To test on Sophon testnet:
 ```
-yarn hardhat test --network <zkSophonTestnet|zkTestnet|zkSyncLocal>  --nonce <number>
+export WALLET_PRIVATE_KEY=0x...
+export export SOPHON_TESTNET_PAYMASTER_ADDRESS=0x...
+```
+
+To test on zkTestnet (zkSync Sepolia):
+```
+export WALLET_PRIVATE_KEY=0x... // account must have native sepolia to pay for the deployments
+```
+
+No env required to test on zkSyncLocal (local node)
+
+
+```
+yarn hardhat test --network <zkSophonTestnet|zkTestnet|zkSyncLocal>  --nonce <number> // nonce gives predictive smart account address
 ```
 
 Running tests with the `zkSyncLocal` network requires a running local zkSync node: [download](https://github.com/matter-labs/era-test-node) and run `era_test_node fork https://sepolia.era.zksync.dev` on another terminal *before* running the tests.
@@ -49,7 +75,7 @@ Running tests with the `zkSyncLocal` network requires a running local zkSync nod
 Run e2e tests directly, skip deployments
 
 ```
-export ACCOUNT_ADDRESS=<DEPLOYED_AND_INITIALIZED_ACCOUNT>
+export ACCOUNT_ADDRESS=<ACCOUNT_ADDRESS>
 yarn hardhat test --network <zkSophonTestnet|zkTestnet|zkSyncLocal> --skip-deployments
 ```
 
@@ -91,13 +117,3 @@ https://docs.zksync.io/build/developer-reference/ethereum-differences/evm-instru
 ```
 yarn hardhat get-account --factory <FACTORY> --implementation <ACCOUNT_IMPLEMENTATION> --nonce <number>
 ```
-
-
-## Narrative
-
-ZKsync is a Zero-knowledge Rollup for Scalling Ethereum featuring its own zkEVM, which runs bytecode distinct from Ethereum's EVM.
-While [99% of Ethereum projects can redeploy on zkSync without needing to refactor or re-audit their code](https://github.com/matter-labs/era-zk_evm), Account Abstraction contracts fall into the remaining 1%.
-
-zkSync natively supports Account Abstraction, eliminating the need for ERC-4337 and its EntryPoint contract.
-
-Account features like session keys, guardians, and the upgradeability stratregy, MUST conform with [openfort-contracts](https://github.com/openfort-xyz/openfort-contracts).
