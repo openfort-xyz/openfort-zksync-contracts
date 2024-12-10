@@ -36,9 +36,8 @@ struct Call {
 }
 
 interface ITimestampAsserter {
-	function assertTimestampInRange(uint256 start, uint256 end) external view;
+    function assertTimestampInRange(uint256 start, uint256 end) external view;
 }
-
 
 /**
  * @title BaseOpenfortAccount (Non upgradeable by default)
@@ -62,6 +61,7 @@ abstract contract BaseOpenfortAccount is
     using TransactionHelper for Transaction;
     using ECDSAUpgradeable for bytes32;
     // bytes4(keccak256("isValidSignature(bytes32,bytes)")
+
     bytes4 internal constant EIP1271_SUCCESS_RETURN_VALUE = 0x1626ba7e;
     // bytes4(keccak256("executeTransaction(bytes32,bytes32,Transaction)")
     bytes4 internal constant EXECUTE_SELECTOR = 0xbd76abb4;
@@ -70,7 +70,6 @@ abstract contract BaseOpenfortAccount is
 
     address internal constant BATCH_CALLER_ADDRESS = 0x7219257B57d9546c1BC0649617d557Db09C92D23;
     address internal constant TIMESTAMP_ASSERTER_ADDRESS = 0x5ea4C1df68Fd54EA9242bC6C405E7699EBbcb5F1;
-
 
     /**
      * Struct to keep track of session keys' data
@@ -148,8 +147,6 @@ abstract contract BaseOpenfortAccount is
                 == EIP1271_SUCCESS_RETURN_VALUE
         ) {
             magic = ACCOUNT_VALIDATION_SUCCESS_MAGIC;
-        } else {
-            magic = "";
         }
     }
 
@@ -157,15 +154,10 @@ abstract contract BaseOpenfortAccount is
         internal
         returns (bytes4 magic)
     {
-        magic = EIP1271_SUCCESS_RETURN_VALUE;
         address signerAddress = _recoverECDSAsignature(_hash, _signature);
 
-        // Note, that we should abstain from using the require here in order to allow for fee estimation to work
-        if (signerAddress != owner() && signerAddress != address(0)) {
-            // if not owner, try session key validation
-            if (!isValidSessionKey(signerAddress, _to, _data)) {
-                magic = "";
-            }
+        if (signerAddress == owner() || isValidSessionKey(signerAddress, _to, _data)) {
+            magic = EIP1271_SUCCESS_RETURN_VALUE;
         }
     }
 
@@ -202,7 +194,11 @@ abstract contract BaseOpenfortAccount is
     /*
      * @notice Return whether a sessionKey is valid.
      */
-    function isValidSessionKey(address _sessionKey, uint256 _to, bytes calldata _data) internal virtual returns (bool) {
+    function isValidSessionKey(address _sessionKey, uint256 _to, bytes calldata _data)
+        internal
+        virtual
+        returns (bool)
+    {
         SessionKeyStruct storage sessionKey = sessionKeys[_sessionKey];
         // If not owner and the session key is revoked, return false
         if (sessionKey.validUntil == 0) return false;
