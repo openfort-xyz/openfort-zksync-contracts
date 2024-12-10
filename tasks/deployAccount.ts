@@ -32,7 +32,7 @@ task("deploy-account", "Deploy an Openfort Upgradeable Account")
                 }
             });
         const ACCOUNT_ADDRESS = await contract.getAddress();
-        console.log(`Account deployed to: ${ACCOUNT_ADDRESS}`);
+        console.log(`Account implementation deployed to: ${ACCOUNT_ADDRESS}`);
         if (args.verify) {
             const fullContractSource = `${artifact.sourceName}:${artifact.contractName}`;
             await hre.run("verify:verify", {

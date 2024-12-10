@@ -23,6 +23,8 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
 
     bytes32 internal upgradeableProxyCodeHash;
 
+    address public timestampAsserter;
+
     error TooManyInitialGuardians();
 
     /**
@@ -34,6 +36,7 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
     );
 
     constructor(
+        address _timestampAsserter,
         address _owner,
         bytes32 _upgradeableProxyCodeHash,
         address _accountImplementation,
@@ -43,6 +46,9 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
         uint256 _lockPeriod,
         address _initialGuardian
     ) BaseOpenfortFactory(_owner, _accountImplementation) {
+        // required in the Openfort BaseAccount to validate session key at transaction validation time
+        // where environment variables like block.timestamp are not available
+        timestampAsserter = _timestampAsserter;
 
         upgradeableProxyCodeHash = _upgradeableProxyCodeHash;
 
@@ -76,6 +82,8 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
         bytes32 _nonce,
         bool _initializeGuardian
     ) external returns (address account) {
+        require(timestampAsserter != address(0), "Timestamp asserter must be set");
+
         bytes32 salt = keccak256(abi.encode(_admin, _nonce));
         account = getAddressWithNonce(_admin, _nonce);
         uint256 codelen;
@@ -109,6 +117,7 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
         emit AccountCreated(account, _admin);
 
         UpgradeableOpenfortAccount(payable(account)).initialize(
+            timestampAsserter,
             _admin,
             recoveryPeriod,
             securityPeriod,
@@ -155,6 +164,6 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
                 )
             )
         );
-        (account) = abi.decode(returnData, (address));
+        account = abi.decode(returnData, (address));
     }
 }

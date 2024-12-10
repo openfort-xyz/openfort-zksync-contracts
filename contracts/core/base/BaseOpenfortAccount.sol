@@ -68,8 +68,9 @@ abstract contract BaseOpenfortAccount is
     // keccak256("OpenfortMessage(bytes32 hashedMessage)");
     bytes32 internal constant OF_MSG_TYPEHASH = 0x57159f03b9efda178eab2037b2ec0b51ce11be0051b8a2a9992c29dc260e4a30;
 
-    address internal constant BATCH_CALLER_ADDRESS = 0x7219257B57d9546c1BC0649617d557Db09C92D23;
-    address internal constant TIMESTAMP_ASSERTER_ADDRESS = 0x5ea4C1df68Fd54EA9242bC6C405E7699EBbcb5F1;
+    address internal constant BATCH_CALLER_ADDRESS = 0x7219257B57d9546c1BC0649617d557Db09C92D23; // salt 0x666
+
+    address public timestampAsserter;
 
     /**
      * Struct to keep track of session keys' data
@@ -95,6 +96,10 @@ abstract contract BaseOpenfortAccount is
     constructor() {
         emit AccountImplementationDeployed(msg.sender);
         _disableInitializers();
+    }
+
+    function __BaseOpenfortAccount_init(address _timestampAsserter) internal onlyInitializing {
+        timestampAsserter = _timestampAsserter;
     }
 
     function owner() public view virtual returns (address);
@@ -206,8 +211,7 @@ abstract contract BaseOpenfortAccount is
         // If the account is transferred or sold, isValidSessionKey() will return false with old session keys;
         if (sessionKey.registrarAddress != owner()) return false;
         // If the session key is out of time range, *revert*
-        ITimestampAsserter timestampAsserter = ITimestampAsserter(TIMESTAMP_ASSERTER_ADDRESS);
-        timestampAsserter.assertTimestampInRange(sessionKey.validAfter, sessionKey.validUntil);
+        ITimestampAsserter(timestampAsserter).assertTimestampInRange(sessionKey.validAfter, sessionKey.validUntil);
         // master session key bypasses whitelist and limit checks
         if (sessionKey.masterSessionKey) return true;
         address to = address(uint160(_to));
@@ -221,7 +225,7 @@ abstract contract BaseOpenfortAccount is
                 ++i;
             }
         }
-        return true;
+    return true;
     }
 
     function _validateSessionKeyCall(SessionKeyStruct storage _sessionKey, address _to) internal returns (bool) {
