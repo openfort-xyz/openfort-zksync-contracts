@@ -14,10 +14,10 @@ task("test")
       const {factory, implementation} = await hre.run("deploy-factory")
       // wait for sophon backend service to whitelist the factory in their paymaster
       factoryAddress = factory
-      if (chain.name == "Sophon") await sleep(10000)
+      if (chain.name == "Sophon") await sleep(15000)
       accountAddress = await hre.run("create-account", { factory, implementation, nonce: args.nonce })
       // wait for sophon backend service to whitelist the new account in their paymaster
-      if (chain.name == "Sophon") await sleep(10000)
+      if (chain.name == "Sophon") await sleep(15000)
     }
     hre.openfortAccountAddress = accountAddress
     hre.factoryAddress = factoryAddress
