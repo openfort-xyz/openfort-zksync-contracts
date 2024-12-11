@@ -225,7 +225,7 @@ abstract contract BaseOpenfortAccount is
                 ++i;
             }
         }
-    return true;
+        return true;
     }
 
     function _validateSessionKeyCall(SessionKeyStruct storage _sessionKey, address _to) internal returns (bool) {
@@ -404,19 +404,19 @@ abstract contract BaseOpenfortAccount is
         }
     }
 
-    /// @dev Execute a delegatecall with `delegate` on this account.
+    /**
+     * @dev Delegate Call to a contract and reverts if it fails.
+     */
     function _executeDelegatecall(address delegate, bytes calldata callData) internal virtual {
         /// @solidity memory-safe-assembly
-
-        bytes memory result;
         assembly {
-            result := mload(0x40)
-            calldatacopy(result, callData.offset, callData.length)
+            let ptr := mload(0x40)
+            calldatacopy(ptr, callData.offset, callData.length)
             // Forwards the `data` to `delegate` via delegatecall.
-            if iszero(delegatecall(gas(), delegate, result, callData.length, codesize(), 0x00)) {
+            if iszero(delegatecall(gas(), delegate, ptr, callData.length, 0, 0)) {
                 // Bubble up the revert if the call reverts.
-                returndatacopy(result, 0x00, returndatasize())
-                revert(result, returndatasize())
+                returndatacopy(ptr, 0x00, returndatasize())
+                revert(ptr, returndatasize())
             }
         }
     }
