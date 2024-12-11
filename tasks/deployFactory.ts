@@ -30,9 +30,14 @@ task("deploy-factory", "Deploy an Openfort Factory")
 
         const proxyBytecodeHash = hashBytecode(proxyArtifact.bytecode as Hex)
         const timestampAsserter = process.env.TIMESTAMP_ASSERTER_ADDRESS
+        const initialGuardian = process.env.INITIAL_GUARDIAN_ADDRESS
         if (!timestampAsserter) {
             throw new Error("TIMESTAMP_ASSERTER_ADDRESS is not set")
         }
+        if (!initialGuardian) {
+            throw new Error("INITIAL_GUARDIAN_ADDRESS is not set")
+        }
+
 
         const constructorArguments = [
             timestampAsserter,
@@ -43,7 +48,7 @@ task("deploy-factory", "Deploy an Openfort Factory")
             SECURITY_PERIOD,
             SECURITY_WINDOW,
             LOCK_PERIOD,
-            wallet.address,
+            initialGuardian,
         ]
 
         const salt = args.salt ?? fromBytes(randomBytes(32), "hex")
