@@ -253,6 +253,7 @@ abstract contract BaseOpenfortAccount is
         bytes32 structHash = keccak256(abi.encode(OF_MSG_TYPEHASH, _hash));
         bytes32 digest = _hashTypedDataV4(structHash);
         address signer = digest.recover(_signature);
+
         if (owner() == signer) return EIP1271_SUCCESS_RETURN_VALUE;
 
         SessionKeyStruct storage sessionKey = sessionKeys[signer];

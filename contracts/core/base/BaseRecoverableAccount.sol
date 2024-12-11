@@ -112,6 +112,7 @@ abstract contract BaseRecoverableAccount is BaseOpenfortAccount, Ownable2StepUpg
         securityPeriod = _securityPeriod;
 
         if (_initialGuardian != address(0)) {
+            if (owner() == _initialGuardian) revert GuardianCannotBeOwner();
             guardiansConfig.guardians.push(_initialGuardian);
             guardiansConfig.info[_initialGuardian].exists = true;
             guardiansConfig.info[_initialGuardian].index = 0;
