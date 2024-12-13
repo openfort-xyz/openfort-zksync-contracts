@@ -87,6 +87,7 @@ abstract contract BaseRecoverableAccount is BaseOpenfortAccount, Ownable2StepUpg
      * @notice Initialize the smart contract account.
      */
     function initialize(
+        address _timestampAsserter,
         address _defaultAdmin,
         uint256 _recoveryPeriod,
         uint256 _securityPeriod,
@@ -103,6 +104,7 @@ abstract contract BaseRecoverableAccount is BaseOpenfortAccount, Ownable2StepUpg
         __Ownable2Step_init();
         _transferOwnership(_defaultAdmin);
         __EIP712_init("Openfort", "0.5");
+        __BaseOpenfortAccount_init(_timestampAsserter);
 
         recoveryPeriod = _recoveryPeriod;
         lockPeriod = _lockPeriod;
@@ -110,6 +112,7 @@ abstract contract BaseRecoverableAccount is BaseOpenfortAccount, Ownable2StepUpg
         securityPeriod = _securityPeriod;
 
         if (_initialGuardian != address(0)) {
+            if (owner() == _initialGuardian) revert GuardianCannotBeOwner();
             guardiansConfig.guardians.push(_initialGuardian);
             guardiansConfig.info[_initialGuardian].exists = true;
             guardiansConfig.info[_initialGuardian].index = 0;

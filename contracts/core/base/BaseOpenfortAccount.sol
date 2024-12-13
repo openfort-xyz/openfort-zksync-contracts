@@ -36,9 +36,8 @@ struct Call {
 }
 
 interface ITimestampAsserter {
-	function assertTimestampInRange(uint256 start, uint256 end) external view;
+    function assertTimestampInRange(uint256 start, uint256 end) external view;
 }
-
 
 /**
  * @title BaseOpenfortAccount (Non upgradeable by default)
@@ -62,15 +61,16 @@ abstract contract BaseOpenfortAccount is
     using TransactionHelper for Transaction;
     using ECDSAUpgradeable for bytes32;
     // bytes4(keccak256("isValidSignature(bytes32,bytes)")
+
     bytes4 internal constant EIP1271_SUCCESS_RETURN_VALUE = 0x1626ba7e;
     // bytes4(keccak256("executeTransaction(bytes32,bytes32,Transaction)")
     bytes4 internal constant EXECUTE_SELECTOR = 0xbd76abb4;
     // keccak256("OpenfortMessage(bytes32 hashedMessage)");
     bytes32 internal constant OF_MSG_TYPEHASH = 0x57159f03b9efda178eab2037b2ec0b51ce11be0051b8a2a9992c29dc260e4a30;
 
-    address internal constant BATCH_CALLER_ADDRESS = 0x7219257B57d9546c1BC0649617d557Db09C92D23;
-    address internal constant TIMESTAMP_ASSERTER_ADDRESS = 0x5ea4C1df68Fd54EA9242bC6C405E7699EBbcb5F1;
+    address internal constant BATCH_CALLER_ADDRESS = 0x7219257B57d9546c1BC0649617d557Db09C92D23; // salt 0x666
 
+    address public timestampAsserter;
 
     /**
      * Struct to keep track of session keys' data
@@ -96,6 +96,10 @@ abstract contract BaseOpenfortAccount is
     constructor() {
         emit AccountImplementationDeployed(msg.sender);
         _disableInitializers();
+    }
+
+    function __BaseOpenfortAccount_init(address _timestampAsserter) internal onlyInitializing {
+        timestampAsserter = _timestampAsserter;
     }
 
     function owner() public view virtual returns (address);
@@ -148,8 +152,6 @@ abstract contract BaseOpenfortAccount is
                 == EIP1271_SUCCESS_RETURN_VALUE
         ) {
             magic = ACCOUNT_VALIDATION_SUCCESS_MAGIC;
-        } else {
-            magic = "";
         }
     }
 
@@ -157,15 +159,10 @@ abstract contract BaseOpenfortAccount is
         internal
         returns (bytes4 magic)
     {
-        magic = EIP1271_SUCCESS_RETURN_VALUE;
         address signerAddress = _recoverECDSAsignature(_hash, _signature);
 
-        // Note, that we should abstain from using the require here in order to allow for fee estimation to work
-        if (signerAddress != owner() && signerAddress != address(0)) {
-            // if not owner, try session key validation
-            if (!isValidSessionKey(signerAddress, _to, _data)) {
-                magic = "";
-            }
+        if (signerAddress == owner() || isValidSessionKey(signerAddress, _to, _data)) {
+            magic = EIP1271_SUCCESS_RETURN_VALUE;
         }
     }
 
@@ -202,7 +199,11 @@ abstract contract BaseOpenfortAccount is
     /*
      * @notice Return whether a sessionKey is valid.
      */
-    function isValidSessionKey(address _sessionKey, uint256 _to, bytes calldata _data) internal virtual returns (bool) {
+    function isValidSessionKey(address _sessionKey, uint256 _to, bytes calldata _data)
+        internal
+        virtual
+        returns (bool)
+    {
         SessionKeyStruct storage sessionKey = sessionKeys[_sessionKey];
         // If not owner and the session key is revoked, return false
         if (sessionKey.validUntil == 0) return false;
@@ -210,8 +211,7 @@ abstract contract BaseOpenfortAccount is
         // If the account is transferred or sold, isValidSessionKey() will return false with old session keys;
         if (sessionKey.registrarAddress != owner()) return false;
         // If the session key is out of time range, *revert*
-        ITimestampAsserter timestampAsserter = ITimestampAsserter(TIMESTAMP_ASSERTER_ADDRESS);
-        timestampAsserter.assertTimestampInRange(sessionKey.validAfter, sessionKey.validUntil);
+        ITimestampAsserter(timestampAsserter).assertTimestampInRange(sessionKey.validAfter, sessionKey.validUntil);
         // master session key bypasses whitelist and limit checks
         if (sessionKey.masterSessionKey) return true;
         address to = address(uint160(_to));
@@ -253,6 +253,7 @@ abstract contract BaseOpenfortAccount is
         bytes32 structHash = keccak256(abi.encode(OF_MSG_TYPEHASH, _hash));
         bytes32 digest = _hashTypedDataV4(structHash);
         address signer = digest.recover(_signature);
+
         if (owner() == signer) return EIP1271_SUCCESS_RETURN_VALUE;
 
         SessionKeyStruct storage sessionKey = sessionKeys[signer];
@@ -404,19 +405,19 @@ abstract contract BaseOpenfortAccount is
         }
     }
 
-    /// @dev Execute a delegatecall with `delegate` on this account.
+    /**
+     * @dev Delegate Call to a contract and reverts if it fails.
+     */
     function _executeDelegatecall(address delegate, bytes calldata callData) internal virtual {
         /// @solidity memory-safe-assembly
-
-        bytes memory result;
         assembly {
-            result := mload(0x40)
-            calldatacopy(result, callData.offset, callData.length)
+            let ptr := mload(0x40)
+            calldatacopy(ptr, callData.offset, callData.length)
             // Forwards the `data` to `delegate` via delegatecall.
-            if iszero(delegatecall(gas(), delegate, result, callData.length, codesize(), 0x00)) {
+            if iszero(delegatecall(gas(), delegate, ptr, callData.length, 0, 0)) {
                 // Bubble up the revert if the call reverts.
-                returndatacopy(result, 0x00, returndatasize())
-                revert(result, returndatasize())
+                returndatacopy(ptr, 0x00, returndatasize())
+                revert(ptr, returndatasize())
             }
         }
     }
