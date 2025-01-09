@@ -21,7 +21,7 @@ task("deploy-account", "Deploy an Openfort Upgradeable Account")
                 customData: hre.network.config.url.includes("sophon") ? {
                     salt,
                     paymasterParams: utils.getPaymasterParams(
-                        process.env.SOPHON_TESTNET_PAYMASTER_ADDRESS!,
+                        process.env.SOPHON_PAYMASTER_ADDRESS!,
                         {
                             type: "General",
                             innerInput: new Uint8Array(),

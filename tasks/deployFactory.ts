@@ -60,7 +60,7 @@ task("deploy-factory", "Deploy an Openfort Factory")
                 customData: !hre.network.config.url.includes("sophon") ? { salt } : {
                     salt,
                     paymasterParams: utils.getPaymasterParams(
-                        process.env.SOPHON_TESTNET_PAYMASTER_ADDRESS!,
+                        process.env.SOPHON_PAYMASTER_ADDRESS!,
                         {
                             type: "General",
                             innerInput: new Uint8Array(),
