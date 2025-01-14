@@ -55,7 +55,7 @@ Run e2e tests on a freshly created account deployed from a fresh factory (long s
 To test on Sophon testnet:
 ```
 export WALLET_PRIVATE_KEY=0x...
-export export SOPHON_TESTNET_PAYMASTER_ADDRESS=0x...
+export export SOPHON_PAYMASTER_ADDRESS=0x...
 ```
 
 To test on zkTestnet (zkSync Sepolia):
@@ -84,7 +84,7 @@ yarn hardhat test --network <zkSophonTestnet|zkTestnet|zkSyncLocal> --skip-deplo
 ```
 WALLET_PRIVATE_KEY= # account must have positive balance to deploy on zkTestnet (Sepolia) OR be whitelisted on Sophon Paymaster to deploy on Sophon testnet
 
-SOPHON_TESTNET_PAYMASTER_ADDRESS= # only required to deploy on Sophon
+SOPHON_PAYMASTER_ADDRESS= # only required to deploy on Sophon
 ```
 
 [UpgradeableOpenfortAccount](./contracts/core/upgradeable/UpgradeableOpenfortAccount.sol)

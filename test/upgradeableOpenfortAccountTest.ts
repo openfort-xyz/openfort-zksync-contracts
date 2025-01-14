@@ -7,9 +7,10 @@ import chaiAsPromised from "chai-as-promised"
 import { concat, encodeFunctionData, encodePacked, keccak256, pad, parseAbi, toHex } from "viem"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { createWalletClient, createPublicClient, hashTypedData, http } from "viem"
+
 import { getEIP712Domain, getViemChainFromConfig, writeContract } from "../tasks/utils"
 import { getGeneralPaymasterInput, serializeTransaction, toSinglesigSmartAccount, eip712WalletActions } from "viem/zksync"
-
+import { sophon } from "viem/chains"
 
 chai.use(chaiAsPromised);
 const expect = chai.expect;
@@ -39,7 +40,7 @@ const walletClient = createWalletClient({
 
 
 describe("ERC20 interactions from Openfort Account", function () {
-    const MOCK_ERC20_ON_SOPHON = "0x0a433954E786712354c5917D0870895c29EF7AE4";
+    const MOCK_ERC20_ON_SOPHON = chain.id == sophon.id ? "0x45E733CfaE530641A90B76586407C84ef8bD583E" : "0x0a433954E786712354c5917D0870895c29EF7AE4";
     interface Tokens {
         mockERC20: `0x${string}`;
     }
@@ -63,7 +64,7 @@ describe("ERC20 interactions from Openfort Account", function () {
         await deployTokens()
 
         const paymaster = {
-            paymaster: process.env.SOPHON_TESTNET_PAYMASTER_ADDRESS as `0x${string}`,
+            paymaster: process.env.SOPHON_PAYMASTER_ADDRESS as `0x${string}`,
             paymasterInput: getGeneralPaymasterInput({ innerInput: new Uint8Array() }),
         };
 
@@ -287,7 +288,7 @@ describe("ERC20 interactions from Openfort Account", function () {
         })
 
         const paymaster = {
-            paymaster: process.env.SOPHON_TESTNET_PAYMASTER_ADDRESS as `0x${string}`,
+            paymaster: process.env.SOPHON_PAYMASTER_ADDRESS as `0x${string}`,
             paymasterInput: getGeneralPaymasterInput({ innerInput: new Uint8Array() }),
         };
 
@@ -458,7 +459,7 @@ describe("ERC20 interactions from Openfort Account", function () {
         })
 
         const paymaster = {
-            paymaster: process.env.SOPHON_TESTNET_PAYMASTER_ADDRESS as `0x${string}`,
+            paymaster: process.env.SOPHON_PAYMASTER_ADDRESS as `0x${string}`,
             paymasterInput: getGeneralPaymasterInput({ innerInput: new Uint8Array() }),
         };
 
