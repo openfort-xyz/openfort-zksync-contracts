@@ -3,6 +3,7 @@ import { createPublicClient, http, parseAbi, Address, Hex, Hash, encodePacked, k
 import { privateKeyToAccount } from "viem/accounts";
 import { getViemChainFromConfig } from "../tasks/utils";
 import hre from "hardhat";
+import { utils } from "zksync-ethers";
 
 
 const paymasterOwner = privateKeyToAccount(hre.network.config.accounts[0])
@@ -45,7 +46,22 @@ describe("Paymaster", function () {
   it("should validate the paymaster signature correctly", async function () {
     // Deploy the paymaster
     const paymasterArtifact = await hre.deployer.loadArtifact("GeneralPaymaster");
-    const paymaster = await hre.deployer.deploy(paymasterArtifact, [paymasterOwner.address], "create");
+    const paymaster = await hre.deployer.deploy(
+      paymasterArtifact,
+      [paymasterOwner.address],
+      "create",
+      {
+        customData: !hre.network.config.url.includes("sophon") ? {} : {
+          paymasterParams: utils.getPaymasterParams(
+            process.env.SOPHON_PAYMASTER_ADDRESS!,
+            {
+              type: "General",
+              innerInput: new Uint8Array(),
+            }),
+          gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
+        },
+      }
+    );
     const paymasterAddress = await paymaster.getAddress();
 
 

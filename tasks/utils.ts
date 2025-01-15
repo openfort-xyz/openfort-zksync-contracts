@@ -1,14 +1,20 @@
-import { Address, PublicClient, WalletClient } from "viem"
+import { Address, Hex, PublicClient, WalletClient, WriteContractParameters } from "viem"
 import { getGeneralPaymasterInput, zksyncInMemoryNode, zksyncSepoliaTestnet } from "viem/zksync"
 import { sophon, sophonTestnet } from "viem/chains"
+
 
 export async function writeContract(c: WalletClient, contractParams) {
   // add paymaster info for sophon
   if (hre.network.config.url.includes("sophon")) {
-    contractParams.paymaster = process.env.SOPHON_PAYMASTER_ADDRESS
+    contractParams.paymaster = process.env.SOPHON_PAYMASTER_ADDRESS as Address
     contractParams.paymasterInput = getGeneralPaymasterInput({ innerInput: new Uint8Array() })
   }
-  return c.writeContract(contractParams)
+  const result = await c.writeContract(contractParams)
+  // if testing on remote network, wait for the transaction to be included
+  if (!(hre.network.config.url.includes("127.0.0.1") || hre.network.config.url.includes("localhost"))) {
+    await sleep(2000)
+  }
+  return result
 }
 
 export function getViemChainFromConfig() {
