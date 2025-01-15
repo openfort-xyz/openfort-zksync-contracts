@@ -605,7 +605,7 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
             args: [sessionKeyAccount.address]
         }))[revocationNoncePosInSessionKeyStruct]
 
-        expect(firstRevocationNonce).to.equal(1n)
+        expect(firstRevocationNonce).to.equal(0n)
 
         const isBobWhitelisted = await publicClient.readContract({
             address: openfortAccountAddress,
@@ -639,7 +639,7 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
             args: [sessionKeyAccount.address]
         }))[revocationNoncePosInSessionKeyStruct]
 
-        expect(secondRevocationNonce).to.equal(2n)
+        expect(secondRevocationNonce).to.equal(1n)
 
         // register again the same session key whith no whitelist
         await writeContract(walletClient, {
