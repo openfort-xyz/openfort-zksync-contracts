@@ -348,7 +348,7 @@ abstract contract BaseOpenfortAccount is
 
         for (i; i < _whitelist.length;) {
             // populate first revocation nonce entry
-            sessionKeys[_key].whitelist[1][_whitelist[i]] = true;
+            sessionKeys[_key].whitelist[sessionKeys[_key].revocationNonce][_whitelist[i]] = true;
             unchecked {
                 ++i;
             }
@@ -365,7 +365,6 @@ abstract contract BaseOpenfortAccount is
                 sessionKeys[_key].masterSessionKey = false;
             }
         }
-        sessionKeys[_key].revocationNonce = 1;
         sessionKeys[_key].validAfter = _validAfter;
         sessionKeys[_key].validUntil = _validUntil;
         sessionKeys[_key].limit = _limit;
