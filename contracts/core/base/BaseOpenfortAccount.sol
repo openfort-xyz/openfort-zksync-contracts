@@ -340,15 +340,17 @@ abstract contract BaseOpenfortAccount is
         address[] calldata _whitelist
     ) external virtual {
         _requireFromOwner();
+
         require(_validUntil > block.timestamp, "Cannot register an expired session key");
         require(_validAfter < _validUntil, "_validAfter must be lower than _validUntil");
         require(sessionKeys[_key].validUntil == 0, "SessionKey already registered");
         require(_whitelist.length < 11, "Whitelist too big");
+
         uint256 i;
+        uint256 revocationNonce = sessionKeys[_key].revocationNonce;
 
         for (i; i < _whitelist.length;) {
-            // populate first whitelist entry - revocationNonce is 0
-            sessionKeys[_key].whitelist[sessionKeys[_key].revocationNonce][_whitelist[i]] = true;
+            sessionKeys[_key].whitelist[revocationNonce][_whitelist[i]] = true;
             unchecked {
                 ++i;
             }
@@ -365,10 +367,12 @@ abstract contract BaseOpenfortAccount is
                 sessionKeys[_key].masterSessionKey = false;
             }
         }
+
         sessionKeys[_key].validAfter = _validAfter;
         sessionKeys[_key].validUntil = _validUntil;
         sessionKeys[_key].limit = _limit;
         sessionKeys[_key].registrarAddress = owner();
+
         emit SessionKeyRegistered(_key);
     }
 
