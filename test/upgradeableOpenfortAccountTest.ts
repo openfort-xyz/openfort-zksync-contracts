@@ -8,7 +8,7 @@ import { concat, encodeFunctionData, encodePacked, keccak256, pad, parseAbi, toH
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { createWalletClient, createPublicClient, hashTypedData, http } from "viem"
 
-import { getEIP712Domain, getViemChainFromConfig, writeContract } from "../tasks/utils"
+import { getEIP712Domain, getViemChainFromConfig, sleep, writeContract } from "../tasks/utils"
 import { getGeneralPaymasterInput, serializeTransaction, toSinglesigSmartAccount, eip712WalletActions } from "viem/zksync"
 import { sophon } from "viem/chains"
 
@@ -39,7 +39,11 @@ const walletClient = createWalletClient({
 }).extend(eip712WalletActions())
 
 
-describe("ERC20 interactions from Openfort Account", function () {
+describe("Openfort Account: mint ERC20 token, batch calls and session keys", function () {
+    // setting big timeout (default is 40000ms)
+    // because we're waiting at the end of every write call
+    // for transaction to be included on remote networks in order to compate states
+    this.timeout(1000000)
     const MOCK_ERC20_ON_SOPHON = chain.id == sophon.id ? "0x45E733CfaE530641A90B76586407C84ef8bD583E" : "0x0a433954E786712354c5917D0870895c29EF7AE4";
     interface Tokens {
         mockERC20: `0x${string}`;
@@ -60,9 +64,7 @@ describe("ERC20 interactions from Openfort Account", function () {
     }
 
     it("self-custody account flow: sign raw transaction", async function () {
-
         await deployTokens()
-
         const paymaster = {
             paymaster: process.env.SOPHON_PAYMASTER_ADDRESS as `0x${string}`,
             paymasterInput: getGeneralPaymasterInput({ innerInput: new Uint8Array() }),
@@ -150,7 +152,6 @@ describe("ERC20 interactions from Openfort Account", function () {
     });
 
     it("register a valid session key and sign with it: balance should be updated", async function () {
-
         await deployTokens()
         const blockTimestamp = (await publicClient.getBlock()).timestamp
 
@@ -332,15 +333,22 @@ describe("ERC20 interactions from Openfort Account", function () {
 
         console.log("Batch Call Transaction Hash", thehash);
 
-        const finalBalance = await publicClient.readContract({
-            account: accountWithOwner,
-            address: tokens.mockERC20,
-            abi: parseAbi(["function balanceOf(address owner) external view returns (uint256)"]),
-            functionName: "balanceOf",
-            args: [openfortAccountAddress],
-        });
-        // Assert that the final balance is the initial balance plus the sum of all minted amounts
-        expect(finalBalance - initialBalance).to.equal(10n + 20n + 30n + 40n);
+        // life is good
+        while (42 == 42) {
+            const finalBalance = await publicClient.readContract({
+                account: accountWithOwner,
+                address: tokens.mockERC20,
+                abi: parseAbi(["function balanceOf(address owner) external view returns (uint256)"]),
+                functionName: "balanceOf",
+                args: [openfortAccountAddress],
+            });
+            if (finalBalance - initialBalance !== 0n) {
+                expect(finalBalance - initialBalance).to.equal(10n + 20n + 30n + 40n);
+                break
+            }
+            console.log("Final Balance isn't updated: waiting a sec and retrying...", finalBalance)
+            await sleep(1000)
+        }
     });
 
     it("batch calls to mint with session key should update balance accordingly", async function () {
@@ -479,7 +487,6 @@ describe("ERC20 interactions from Openfort Account", function () {
             from: accountWithOwner.address,
             chainId: chain.id,
             // preparedTransactionRequest
-
             nonce: transactionRequest.nonce,
             gas: transactionRequest.gas,
             maxFeePerGas: transactionRequest.maxFeePerGas,
@@ -503,15 +510,23 @@ describe("ERC20 interactions from Openfort Account", function () {
 
         console.log("Batch Call Transaction Hash", thehash);
 
-        const finalBalance = await publicClient.readContract({
-            account: accountWithOwner,
-            address: tokens.mockERC20,
-            abi: parseAbi(["function balanceOf(address owner) external view returns (uint256)"]),
-            functionName: "balanceOf",
-            args: [openfortAccountAddress],
-        });
-        // Assert that the final balance is the initial balance plus the sum of all minted amounts
-        expect(finalBalance - initialBalance).to.equal(10n + 20n + 30n + 40n);
+        // life is good
+        while (42 == 42) {
+            const finalBalance = await publicClient.readContract({
+                account: accountWithOwner,
+                address: tokens.mockERC20,
+                abi: parseAbi(["function balanceOf(address owner) external view returns (uint256)"]),
+                functionName: "balanceOf",
+                args: [openfortAccountAddress],
+            });
+            if (finalBalance - initialBalance !== 0n) {
+                expect(finalBalance - initialBalance).to.equal(10n + 20n + 30n + 40n);
+                break
+            }
+            console.log("Final Balance isn't updated: waiting a sec and retrying...", finalBalance)
+            await sleep(1000)
+        }
+
         // Try to mint one more time with the session key
         // SHOULD FAIL: since we set the usage limit to 4 and used them all in the batch.
         await expect(
@@ -560,5 +575,97 @@ describe("ERC20 interactions from Openfort Account", function () {
         });
         // Assert that the signature is valid
         expect(isValid).to.equal("0x1626ba7e"); // EIP1271_SUCCESS_RETURN_VALUE
+
     });
+
+
+    it("should revoke session key and clear its whitelist", async function () {
+        const sessionKey = generatePrivateKey()
+        const sessionKeyAccount = privateKeyToAccount(sessionKey)
+        const blockTimestamp = (await publicClient.getBlock()).timestamp
+
+        const bobMarketPlace = privateKeyToAccount(generatePrivateKey()).address
+        const aliceMarketPlace = privateKeyToAccount(generatePrivateKey()).address
+
+        // register a new random sessionKey
+        const registerSessionKeyTxHash = await writeContract(walletClient, {
+            account: owner,
+            address: openfortAccountAddress,
+            abi: parseAbi(["function registerSessionKey(address, uint48, uint48, uint48, address[]) external"]),
+            functionName: "registerSessionKey",
+            args: [sessionKeyAccount.address, blockTimestamp, blockTimestamp + BigInt(24 * 60 * 60), 100, [bobMarketPlace, aliceMarketPlace]],
+        })
+
+        const revocationNoncePosInSessionKeyStruct = 5;
+
+        let firstRevocationNonce = (await publicClient.readContract({
+            address: openfortAccountAddress,
+            abi: parseAbi(["function sessionKeys(address) public view returns (uint48 validAfter, uint48 validUntil, uint48 limit, bool masterSessionKey, bool whitelisting, uint256 revocationNonce, address registrarAddress)"]),
+            functionName: "sessionKeys",
+            args: [sessionKeyAccount.address]
+        }))[revocationNoncePosInSessionKeyStruct]
+
+        expect(firstRevocationNonce).to.equal(1n)
+
+        const isBobWhitelisted = await publicClient.readContract({
+            address: openfortAccountAddress,
+            abi: parseAbi(["function isWhitelisted(address,uint256,address) external view returns (bool)"]),
+            functionName: "isWhitelisted",
+            args: [sessionKeyAccount.address, firstRevocationNonce, bobMarketPlace]
+        })
+
+        const isAliceWhitelisted = await publicClient.readContract({
+            address: openfortAccountAddress,
+            abi: parseAbi(["function isWhitelisted(address,uint256,address) external view returns (bool)"]),
+            functionName: "isWhitelisted",
+            args: [sessionKeyAccount.address, firstRevocationNonce, aliceMarketPlace]
+        })
+
+        expect(isBobWhitelisted).to.equal(true)
+        expect(isAliceWhitelisted).to.equal(true)
+
+
+        const revokeSessionKeyTxHash = await writeContract(walletClient, {
+            account: owner,
+            address: openfortAccountAddress,
+            abi: parseAbi(["function revokeSessionKey(address _key) external"]),
+            functionName: "revokeSessionKey",
+            args: [sessionKeyAccount.address]
+        })
+        const secondRevocationNonce = (await publicClient.readContract({
+            address: openfortAccountAddress,
+            abi: parseAbi(["function sessionKeys(address) public view returns (uint48 validAfter, uint48 validUntil, uint48 limit, bool masterSessionKey, bool whitelisting, uint256 revocationNonce, address registrarAddress)"]),
+            functionName: "sessionKeys",
+            args: [sessionKeyAccount.address]
+        }))[revocationNoncePosInSessionKeyStruct]
+
+        expect(secondRevocationNonce).to.equal(2n)
+
+        // register again the same session key whith no whitelist
+        await writeContract(walletClient, {
+            account: owner,
+            address: openfortAccountAddress,
+            abi: parseAbi(["function registerSessionKey(address, uint48, uint48, uint48, address[]) external"]),
+            functionName: "registerSessionKey",
+            args: [sessionKeyAccount.address, blockTimestamp, blockTimestamp + BigInt(24 * 60 * 60), 100, []],
+        })
+        // bob and alice marketplaces are not whitelisted anymore
+        const isBobWhitelisted2 = await publicClient.readContract({
+            address: openfortAccountAddress,
+            abi: parseAbi(["function isWhitelisted(address,uint256,address) external view returns (bool)"]),
+            functionName: "isWhitelisted",
+            args: [sessionKeyAccount.address, secondRevocationNonce, bobMarketPlace]
+        })
+
+        expect(isBobWhitelisted2).to.equal(false)
+
+        const isAliceWhitelisted2 = await publicClient.readContract({
+            address: openfortAccountAddress,
+            abi: parseAbi(["function isWhitelisted(address,uint256,address) external view returns (bool)"]),
+            functionName: "isWhitelisted",
+            args: [sessionKeyAccount.address, secondRevocationNonce, aliceMarketPlace]
+        })
+
+        expect(isAliceWhitelisted2).to.equal(false)
+    })
 })
