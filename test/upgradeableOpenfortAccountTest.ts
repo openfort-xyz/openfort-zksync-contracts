@@ -596,6 +596,7 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
             args: [sessionKeyAccount.address, blockTimestamp, blockTimestamp + BigInt(24 * 60 * 60), 100, [bobMarketPlace, aliceMarketPlace]],
         })
 
+        console.log("registerSessionKeyTxHash", registerSessionKeyTxHash)
         const revocationNoncePosInSessionKeyStruct = 5;
 
         let firstRevocationNonce = (await publicClient.readContract({
@@ -668,4 +669,74 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
 
         expect(isAliceWhitelisted2).to.equal(false)
     })
+
+    it("should register and revoke 10 times the same session key", async function () {
+        const revocationNoncePosInSessionKeyStruct = 5;
+        const n = 10
+        const sessionKey = generatePrivateKey()
+        const sessionKeyAccount = privateKeyToAccount(sessionKey)
+        const blockTimestamp = (await publicClient.getBlock()).timestamp
+
+        const bobMarketPlace = privateKeyToAccount(generatePrivateKey()).address
+        const aliceMarketPlace = privateKeyToAccount(generatePrivateKey()).address
+
+        for (let i = 0; i < n; i++) {
+            await writeContract(walletClient, {
+                account: owner,
+                address: openfortAccountAddress,
+                abi: parseAbi(["function registerSessionKey(address, uint48, uint48, uint48, address[]) external"]),
+                functionName: "registerSessionKey",
+                args: [sessionKeyAccount.address, blockTimestamp, blockTimestamp + BigInt(24 * 60 * 60), 100, [bobMarketPlace, aliceMarketPlace]],
+            })
+
+            await writeContract(walletClient, {
+                account: owner,
+                address: openfortAccountAddress,
+                abi: parseAbi(["function revokeSessionKey(address _key) external"]),
+                functionName: "revokeSessionKey",
+                args: [sessionKeyAccount.address],
+            })
+        }
+
+        // 11th registration of the same session key occurs without whitelist
+        await writeContract(walletClient, {
+            account: owner,
+            address: openfortAccountAddress,
+            abi: parseAbi(["function registerSessionKey(address, uint48, uint48, uint48, address[]) external"]),
+            functionName: "registerSessionKey",
+            args: [sessionKeyAccount.address, blockTimestamp, blockTimestamp + BigInt(24 * 60 * 60), 100, []],
+        })
+
+
+        const revocationNonce = (await publicClient.readContract({
+            address: openfortAccountAddress,
+            abi: parseAbi(["function sessionKeys(address) public view returns (uint48 validAfter, uint48 validUntil, uint48 limit, bool masterSessionKey, bool whitelisting, uint256 revocationNonce, address registrarAddress)"]),
+            functionName: "sessionKeys",
+            args: [sessionKeyAccount.address]
+        }))[revocationNoncePosInSessionKeyStruct]
+
+        expect(revocationNonce).to.equal(BigInt(10))
+
+
+        const isBobWhitelisted = await publicClient.readContract({
+            address: openfortAccountAddress,
+            abi: parseAbi(["function isWhitelisted(address,uint256,address) external view returns (bool)"]),
+            functionName: "isWhitelisted",
+            args: [sessionKeyAccount.address, revocationNonce, bobMarketPlace]
+        })
+
+        expect(isBobWhitelisted).to.equal(false)
+
+        const isAliceWhitelisted = await publicClient.readContract({
+            address: openfortAccountAddress,
+            abi: parseAbi(["function isWhitelisted(address,uint256,address) external view returns (bool)"]),
+            functionName: "isWhitelisted",
+            args: [sessionKeyAccount.address, revocationNonce, aliceMarketPlace]
+        })
+
+        expect(isAliceWhitelisted).to.equal(false)
+
+    })
 })
+
+
