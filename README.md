@@ -10,7 +10,7 @@
       Documentation
     </a>
     <span> | </span>
-    <a href="https://www.openfort.xyz/docs/api">
+    <a href="https://www.openfort.xyz/docs/reference/api/introduction">
       API Docs
     </a>
     <span> | </span>
