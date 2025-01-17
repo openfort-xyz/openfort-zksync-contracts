@@ -32,6 +32,7 @@ const accountWithOwner = toSinglesigSmartAccount({
     privateKey: hre.network.config.accounts[0],
 })
 
+
 const walletClient = createWalletClient({
     account: accountWithOwner,
     chain,
@@ -55,7 +56,7 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
     async function deployTokens() {
         // use already whitelisted mocks on Sophon
         // deploy token contracts only once for all tests on other chains
-        if (chain.name != "Sophon" && tokens.mockERC20 == MOCK_ERC20_ON_SOPHON) {
+        if (!chain.name.includes("Sophon") && tokens.mockERC20 == MOCK_ERC20_ON_SOPHON) {
             const artifact = await hre.deployer.loadArtifact("MockERC20");
             const contract = await hre.deployer.deploy(artifact, [], "create")
             tokens.mockERC20 = await contract.getAddress()
@@ -79,7 +80,7 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
             to: tokens.mockERC20,
             // function mint(address sender = 0x9590Ed0C18190a310f4e93CAccc4CC17270bED40, unit256 amount = 42)
             data: "0x40c10f190000000000000000000000009590ed0c18190a310f4e93caccc4cc17270bed40000000000000000000000000000000000000000000000000000000000000002a",
-            ...(chain.name === "Sophon" ? paymaster : {}),
+            ...(chain.name.includes("Sophon") ? paymaster : {}),
         })
 
         const signableTransaction = {
@@ -95,7 +96,7 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
 
             to: tokens.mockERC20,
             data: "0x40c10f190000000000000000000000009590ed0c18190a310f4e93caccc4cc17270bed40000000000000000000000000000000000000000000000000000000000000002a",
-            ...(chain.name === "Sophon" ? paymaster : {}),
+            ...(chain.name.includes("Sophon") ? paymaster : {}),
         };
 
         // OPENFORT FLOW:
@@ -300,7 +301,7 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
             chainId: chain.id,
             to: batchCallerAddress,
             data: data,
-            ...(chain.name === "Sophon" ? paymaster : {}),
+            ...(chain.name.includes("Sophon") ? paymaster : {}),
 
         })
 
@@ -316,7 +317,7 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
             maxPriorityFeePerGas: transactionRequest.maxPriorityFeePerGas,
             to: batchCallerAddress,
             data: data,
-            ...(chain.name === "Sophon" ? paymaster : {}),
+            ...(chain.name.includes("Sophon") ? paymaster : {}),
 
         };
 
@@ -334,7 +335,7 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
         console.log("Batch Call Transaction Hash", thehash);
 
         // life is good
-        while (42 == 42) {
+        for (let i = 1; i < 10; i++) {
             const finalBalance = await publicClient.readContract({
                 account: accountWithOwner,
                 address: tokens.mockERC20,
@@ -346,8 +347,9 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
                 expect(finalBalance - initialBalance).to.equal(10n + 20n + 30n + 40n);
                 break
             }
-            console.log("Final Balance isn't updated: waiting a sec and retrying...", finalBalance)
-            await sleep(1000)
+            const delay = 300
+            console.log(`DELAY: Final Balance isn't updated >> waiting ${delay}ms for ${i} time...`)
+            await sleep(delay)
         }
     });
 
@@ -478,7 +480,7 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
             chainId: chain.id,
             to: batchCallerAddress,
             data: data,
-            ...(chain.name === "Sophon" ? paymaster : {}),
+            ...(chain.name.includes("Sophon") ? paymaster : {}),
 
         })
 
@@ -493,7 +495,7 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
             maxPriorityFeePerGas: transactionRequest.maxPriorityFeePerGas,
             to: batchCallerAddress,
             data: data,
-            ...(chain.name === "Sophon" ? paymaster : {}),
+            ...(chain.name.includes("Sophon") ? paymaster : {}),
 
         };
 
@@ -510,8 +512,7 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
 
         console.log("Batch Call Transaction Hash", thehash);
 
-        // life is good
-        while (42 == 42) {
+        for (let i = 1; i < 10; i++) {
             const finalBalance = await publicClient.readContract({
                 account: accountWithOwner,
                 address: tokens.mockERC20,
@@ -523,8 +524,9 @@ describe("Openfort Account: mint ERC20 token, batch calls and session keys", fun
                 expect(finalBalance - initialBalance).to.equal(10n + 20n + 30n + 40n);
                 break
             }
-            console.log("Final Balance isn't updated: waiting a sec and retrying...", finalBalance)
-            await sleep(1000)
+            const delay = 300
+            console.log(`DELAY: Final Balance isn't updated >> waiting ${delay}ms for ${i} time...`)
+            await sleep(delay)
         }
 
         // Try to mint one more time with the session key
