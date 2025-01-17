@@ -285,6 +285,7 @@ abstract contract BaseRecoverableAccount is BaseOpenfortAccount, Ownable2StepUpg
      * @param _guardian The guardian to confirm the revocation.
      */
     function confirmGuardianRevocation(address _guardian) external {
+        _requireRecovery(false);
         if (guardiansConfig.info[_guardian].pending == 0) revert UnknownRevoke();
         if (isLocked()) revert AccountLocked();
         if (!isGuardian(_guardian)) revert MustBeGuardian();
