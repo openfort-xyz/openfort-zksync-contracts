@@ -1,6 +1,6 @@
 import { Address, Hex, PublicClient, WalletClient, WriteContractParameters } from "viem"
 import { getGeneralPaymasterInput, zksyncInMemoryNode, zksyncSepoliaTestnet } from "viem/zksync"
-import { sophon, sophonTestnet } from "viem/chains"
+import { sophon, sophonTestnet, abstractTestnet } from "viem/chains"
 
 
 export async function writeContract(c: WalletClient, contractParams) {
@@ -27,6 +27,8 @@ export function getViemChainFromConfig() {
       return sophonTestnet
     case "https://rpc.sophon.xyz":
       return sophon
+    case "https://api.testnet.abs.xyz":
+      return abstractTestnet
     default:
       throw new Error("Unkown network")
   }
