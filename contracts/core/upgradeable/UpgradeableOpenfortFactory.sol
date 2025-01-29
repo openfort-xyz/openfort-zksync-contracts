@@ -35,6 +35,11 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
      */
     event InitialGuardianUpdated(address indexed oldInitialGuardian, address indexed newInitialGuardian);
 
+    /**
+     * @dev Emitted when the timestamp asserter is changed.
+     */
+    event TimestampAsserterUpdated(address indexed oldTimestampAsserter, address indexed newTimestampAsserter);
+
     constructor(
         address _timestampAsserter,
         address _owner,
@@ -65,9 +70,16 @@ contract UpgradeableOpenfortFactory is BaseOpenfortFactory {
 
     function updateInitialGuardian(address _newInitialGuardian) external onlyOwner {
         if (_newInitialGuardian == address(0)) revert ZeroAddressNotAllowed();
-        emit InitialGuardianUpdated(initialGuardian, _newInitialGuardian);
         initialGuardian = _newInitialGuardian;
+        emit InitialGuardianUpdated(initialGuardian, _newInitialGuardian);
     }
+
+    function updateTimestampAsserter(address _newTimestampAsserter) external onlyOwner {
+        if (_newTimestampAsserter == address(0)) revert ZeroAddressNotAllowed();
+        timestampAsserter = _newTimestampAsserter;
+        emit TimestampAsserterUpdated(timestampAsserter, _newTimestampAsserter);
+    }
+
 
     /*
      * @notice Deploy a new account for _admin with a _nonce.
