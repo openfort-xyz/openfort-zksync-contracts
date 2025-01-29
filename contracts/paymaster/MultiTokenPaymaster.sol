@@ -64,13 +64,14 @@ contract MultiTokenPaymaster is IPaymaster, Ownable {
         uint256 rate = 1;
         uint256 requiredEth = _transaction.gasLimit * _transaction.maxFeePerGas;
         if (paymasterInputSelector == IPaymasterFlow.approvalBased.selector) {
+
+            // Note: rate is the ETH/TOKEN price
             (token,,,, rate,) =
                 abi.decode(_transaction.paymasterInput[4:], (address, uint256, uint256, uint256, uint256, uint256));
 
-            uint8 tokenDecimals = ERC20(token).decimals();
             address userAddress = address(uint160(_transaction.from));
             uint256 providedAllowance = IERC20(token).allowance(userAddress, address(this));
-            uint256 requiredToken = (requiredEth * rate * (10 ** tokenDecimals)) / (10 ** ETH_DECIMALS);
+            uint256 requiredToken = (requiredEth * rate) / (10 ** ETH_DECIMALS);
 
             if (providedAllowance < requiredToken) {
                 revert("Insufficient allowance");
@@ -122,10 +123,10 @@ contract MultiTokenPaymaster is IPaymaster, Ownable {
     ) external payable onlyBootloader {
         (address tokenAddress, uint256 rate) = abi.decode(_context, (address, uint256));
         if (tokenAddress != ETH) {
-            address fromAddress = address(uint160(_transaction.from));
-            uint256 refundTokenAmount = ((_maxRefundedGas * _transaction.maxFeePerGas) * rate) / 1e18;
-            IERC20(tokenAddress).safeTransfer(fromAddress, refundTokenAmount);
-            emit ERC20PaymasterUsed(fromAddress, tokenAddress);
+            address userAddress = address(uint160(_transaction.from));
+            uint256 refundTokenAmount = ((_maxRefundedGas * _transaction.maxFeePerGas) * rate) / ETH_DECIMALS;
+            IERC20(tokenAddress).safeTransfer(userAddress, refundTokenAmount);
+            emit ERC20PaymasterUsed(userAddress, tokenAddress);
         }
     }
 

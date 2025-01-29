@@ -18,7 +18,7 @@ const walletClient = createWalletClient({
   transport: http(hre.network.config.url),
 }).extend(eip712WalletActions())
 
-const ETH = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as Address;
+const ETH_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as Address;
 const ETH_DECIMALS = 18n;
 
 export type PaymasterInputData = {
@@ -34,60 +34,78 @@ export type PaymasterInputData = {
 export async function getZKSyncPaymasterInputData(
   paymasterInputData: PaymasterInputData,
   chainId: ChainId,
-  policy: PolicySponsorSchema,
+  policy: PolicySponsorSchema
 ): Promise<Hex> {
 
-  if ([ChainId.Sophon, ChainId.SophonTestnet].includes(chainId)) {
-    // accounts are whitelisted by sophon paymaster - no need to sign anything
-    return getGeneralPaymasterInput({ innerInput: new Uint8Array() });
+  if ( [ChainId.Sophon, ChainId.SophonTestnet].includes(chainId)) {
+      // accounts are whitelisted by sophon paymaster when deployed (most likely...)
+      // no need to sign anything -  all transactions sponsored by default
+      return getGeneralPaymasterInput({ innerInput: new Uint8Array() });
   }
 
-  const token = policy.sponsorshipType === SponsorshipType.PAY_FOR_USER ? ETH : policy.tokenContractAddress;
-  const rate = policy.sponsorshipType === SponsorshipType.PAY_FOR_USER ? 1n : policy.tokenContractAmount;
+  // Note: rate is the ETH/TOKEN price
+  const { token, rate } = await getTokenInfo(policy);
 
   const encodedData = encodePacked(
-    ["address", "address", "bytes", "uint256", "uint256", "uint256", "uint256", "address", "uint256"],
-    [
-      paymasterInputData.from,
-      paymasterInputData.to,
-      paymasterInputData.data,
-      paymasterInputData.value ?? 0n,
-      paymasterInputData.maxFeePerGas,
-      paymasterInputData.gasLimit,
-      paymasterInputData.nonce,
-      token,
-      rate,
-    ],
+      ["address", "address", "bytes", "uint256", "uint256", "uint256", "uint256", "address", "uint256"],
+      [
+          paymasterInputData.from,
+          paymasterInputData.to,
+          paymasterInputData.data,
+          paymasterInputData.value ?? 0n,
+          paymasterInputData.maxFeePerGas,
+          paymasterInputData.gasLimit,
+          paymasterInputData.nonce,
+          token,
+          rate,
+      ],
   );
 
   const hash = keccak256(encodedData);
   const signature = await paymasterOwner.signMessage({ message: { raw: hash } });
-  const requiredEth = paymasterInputData.maxFeePerGas * paymasterInputData.gasLimit;
 
-  const tokenDecimals = policy.sponsorshipType === SponsorshipType.PAY_FOR_USER ? ETH_DECIMALS : await publicClient.readContract({
-    address: token,
-    abi: parseAbi([
-      "function decimals() external view returns (uint8)"
-    ]),
-    functionName: "decimals",
-  })
-
-  const minAllowance = requiredEth * rate * (10n ** BigInt(tokenDecimals)) / (10n ** ETH_DECIMALS)
-  const innerInput = encodePacked(
-    ["uint256", "bytes"],
-    [rate, signature]
-  )
-
-  switch (policy.sponsorshipType) {
-    case SponsorshipType.PAY_FOR_USER:
+  // General flow for native token sponsorship
+  if (policy.sponsorshipType === SponsorshipType.PAY_FOR_USER) {
       return getGeneralPaymasterInput({ innerInput: signature });
-    case SponsorshipType.CHARGE_CUSTOM_TOKENS:
-      return getApprovalBasedPaymasterInput({ innerInput, token, minAllowance});
-    case SponsorshipType.FIXED_RATE: {
-      return getApprovalBasedPaymasterInput({ innerInput, token, minAllowance});
-    }
   }
+
+  const innerInput = encodePacked(["uint256", "bytes"], [rate, signature]);
+  const minAllowance = calculateMinAllowance(paymasterInputData, rate);
+
+  // With the approval based paymaster flow, user can approve 
+  // the required amount of tokens to the paymaster within the same transaction
+  return getApprovalBasedPaymasterInput({ innerInput, token, minAllowance });
 }
+
+const getTokenInfo = async (
+  policy: PolicySponsorSchema,
+): Promise<{ token: Address; rate: bigint}> => {
+  const isPayForUser = policy.sponsorshipType === SponsorshipType.PAY_FOR_USER;
+  const token = isPayForUser ? ETH_ADDRESS : getAddress(policy.tokenContractAddress);
+  const rate = isPayForUser ? 1n : policy.tokenContractAmount;
+
+  // TODO: to remove following call - store decimals of ERC20 available for sponsorship in db
+  const decimals = isPayForUser
+      ? 0n
+      : BigInt(
+            await publicClient.readContract({
+                address: getAddress(token),
+                abi: parseAbi(["function decimals() external view returns (uint8)"]),
+                functionName: "decimals",
+            })
+        );
+
+  return { token, rate: rate * 10n ** decimals };
+};
+
+const calculateMinAllowance = (
+  params: PaymasterInputData,
+  rate: bigint,
+): bigint => {
+  const requiredEth = params.maxFeePerGas * params.gasLimit;
+  return (requiredEth * rate) / 10n ** ETH_DECIMALS;
+};
+
 
 describe("Paymaster", function () {
 
@@ -98,7 +116,7 @@ describe("Paymaster", function () {
   let mockERC20Address;
   before(async function () {
     if (hre.network.config.url.includes("sophon")) {
-      console.log("Can't use custom Paymaster on Sophon networks: Skipping test");
+      console.log("Cant use custom Paymaster on Sophon networks: Skipping test");
       this.skip();
     }
     const paymasterArtifact = await hre.deployer.loadArtifact("MultiTokenPaymaster");
@@ -198,7 +216,7 @@ describe("Paymaster", function () {
           sampleInputData.nonce
         ],
         tokenPolicy.tokenContractAddress,
-        tokenPolicy.tokenContractAmount
+        tokenPolicy.tokenContractAmount * 10n ** 18n
       ]
     });
 
@@ -224,7 +242,7 @@ describe("Paymaster", function () {
           sampleInputData.gasLimit,
           sampleInputData.nonce
         ],
-        ETH,
+        ETH_ADDRESS,
         1n
       ]
     });
