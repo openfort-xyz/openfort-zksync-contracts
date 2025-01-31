@@ -41,7 +41,7 @@ const publicClient = createPublicClient({
     transport: http(),
 });
 
-const walletClient = createWalletClient({
+const paymasterOwnerWalletClient = createWalletClient({
     account: paymasterOwner,
     chain,
     transport: http(hre.network.config.url),
@@ -128,9 +128,6 @@ const getTokenInfo = async (policy: PolicySponsorSchema): Promise<{ token: Addre
 const calculateMinAllowance = (params: PaymasterInputData, rate: bigint): bigint => {
     const requiredEth = params.maxFeePerGas * params.gasLimit;
     const minAllowance = (requiredEth * rate) / 10n ** ETH_DECIMALS;
-    console.log("requiredEth", requiredEth);
-    console.log("rate", rate);
-    console.log("minAllowance", minAllowance);
     return minAllowance;
 };
 
@@ -150,7 +147,7 @@ describe("Paymaster", function () {
         const paymaster = await hre.deployer.deploy(paymasterArtifact, [paymasterOwner.address], "create");
         paymasterAddress = await paymaster.getAddress();
         console.log("paymasterAddress", paymasterAddress);
-        await walletClient.sendTransaction({
+        await paymasterOwnerWalletClient.sendTransaction({
             to: paymasterAddress,
             value: parseEther("0.001"),
         });
@@ -166,6 +163,11 @@ describe("Paymaster", function () {
             account: randomAccount,
             chain,
             transport: http(hre.network.config.url),
+        });
+
+        await paymasterOwnerWalletClient.sendTransaction({
+            to: randomAccount.address,
+            value: parseEther("0.0001"),
         });
 
         const mockERC20Artifact = await hre.deployer.loadArtifact("MockERC20");
@@ -329,14 +331,14 @@ describe("Paymaster", function () {
         };
 
         // SEND ERC20 token to random account for gas
-        await writeContract(walletClient, {
+        await writeContract(paymasterOwnerWalletClient, {
             address: mockERC20Address,
             abi: parseAbi(["function mint(address _to, uint256 _amount) external"]),
             functionName: "mint",
             args: [randomAccount.address, rate * BigInt(10 ** 18)],
         });
 
-        await writeContract(walletClient, {
+        await writeContract(paymasterOwnerWalletClient, {
             address: mockERC209Address,
             abi: parseAbi(["function mint(address _to, uint256 _amount) external"]),
             functionName: "mint",
@@ -417,6 +419,35 @@ describe("Paymaster", function () {
         const requiredEth = mintNFTtx.maxFeePerGas * mintNFTtx.gas;
         const minAllowanceERC20 = (BigInt(requiredEth) * rate * 10n ** 18n) / 10n ** 18n;
         expect(paymasterMockERC20Balance).to.be.equal(minAllowanceERC20);
+
+        // Only the owner of the paymaster can withdraw the ERC20 token
+
+        const randomWalletClient = createWalletClient({
+            account: randomAccount,
+            chain,
+            transport: http(hre.network.config.url),
+        });
+
+        // https://www.4byte.directory/signatures/?bytes4_signature=0x82b42900
+        const unauthorizedSignature = "0x82b42900";
+
+        await expect(
+            writeContract(randomWalletClient, {
+                address: paymasterAddress,
+                abi: parseAbi(["function withdrawToken(address token, address to, uint256 amount) external"]),
+                functionName: "withdrawToken",
+                args: [getAddress(mockERC20Address), randomAccount.address, paymasterMockERC20Balance],
+            }),
+        ).to.be.rejectedWith(unauthorizedSignature);
+
+        await expect(
+            writeContract(paymasterOwnerWalletClient, {
+                address: paymasterAddress,
+                abi: parseAbi(["function withdrawToken(address token, address to, uint256 amount) external"]),
+                functionName: "withdrawToken",
+                args: [getAddress(mockERC20Address), paymasterOwner.address, paymasterMockERC20Balance],
+            }),
+        ).to.be.fulfilled;
 
         ////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -565,7 +596,7 @@ describe("Paymaster", function () {
             sampleInputData,
             chain.id as ChainId,
             nativePolicy,
-            wrongSigner, // Signing paymaster input with any other private key than the owner of the paymaster will fail
+            wrongSigner, // Signing paymaster input with any other private key than the owner of the paymaster MUST fail
         );
 
         const signableMintNFTTransaction = {
@@ -595,9 +626,11 @@ describe("Paymaster", function () {
             customSignature: signature,
         });
 
-        await expect(publicClient.sendRawTransaction({
-            serializedTransaction: signedTransaction,
-        })).to.be.rejectedWith("Account validation error: Paymaster validation returned invalid magic value");
+        await expect(
+            publicClient.sendRawTransaction({
+                serializedTransaction: signedTransaction,
+            }),
+        ).to.be.rejectedWith("Account validation error: Paymaster validation returned invalid magic value");
     });
 });
 

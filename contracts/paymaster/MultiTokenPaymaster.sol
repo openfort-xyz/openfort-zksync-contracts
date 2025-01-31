@@ -35,6 +35,8 @@ contract MultiTokenPaymaster is IPaymaster, Ownable {
     address constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     uint256 constant ETH_DECIMALS = 18;
 
+    error UnauthorizedWithdraw();
+    event BalanceWithdrawn(address indexed user, uint256 indexed amount);
     event ERC20PaymasterUsed(address indexed user, address indexed token);
 
     modifier onlyBootloader() {
@@ -155,6 +157,32 @@ contract MultiTokenPaymaster is IPaymaster, Ownable {
             return false;
         }
         return recoveredAddress == owner();
+    }
+
+
+    /**
+     * @notice Withdraw paymaster funds as owner
+     * @param to address     - Token receiver address
+     * @param amount uint256 - Amount to be withdrawn
+     * @dev Only owner address can call this method
+     */
+    function withdraw(address to, uint256 amount) external onlyOwner {
+        // Send paymaster funds to the given address
+        (bool success, ) = payable(to).call{value: amount}("");
+        if (!success) revert UnauthorizedWithdraw();
+        emit BalanceWithdrawn(to, amount);
+    }
+
+    /**
+     * @notice Withdraw paymaster token funds as owner
+     * @param token address  - Token address to withdraw
+     * @param to    address  - Token receiver address
+     * @param amount uint256 - Amount to be withdrawn
+     * @dev Only owner address can call this method
+     */
+    function withdrawToken(address token, address to, uint256 amount) external onlyOwner {
+        // Send paymaster funds to the given address
+        IERC20(token).safeTransfer(to, amount);
     }
 
     receive() external payable {}
